@@ -157,7 +157,11 @@ For more details see the notebook [./smartmeters-ANP-RNN-mcdropout.ipynb](./smar
 - clone this repository
 - see requirements.txt for requirements and version
   - ```
-	conda create --name <env_name> pip jupyterlab
+	conda create --name <env_name> pip jupyterlab ipywidgets
+	# https://ipywidgets.readthedocs.io/en/latest/user_install.html#installing-the-jupyterlab-extension
+	conda install -c conda-forge nodejs
+	jupyter labextension install @jupyter-widgets/jupyterlab-manager
+	# https://pytorch.org/
 	conda install pytorch torchvision cudatoolkit=10.1 -c pytorch
 	conda activate <env_name>
 	pip install -r requirements.txt
