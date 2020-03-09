@@ -156,6 +156,13 @@ For more details see the notebook [./smartmeters-ANP-RNN-mcdropout.ipynb](./smar
 
 - clone this repository
 - see requirements.txt for requirements and version
+  - ```
+	conda create --name <env_name> pip jupyterlab
+	conda install pytorch torchvision cudatoolkit=10.1 -c pytorch
+	conda activate <env_name>
+	pip install -r requirements.txt
+	```
+  - Require NVIDIA GPU for Torch compiled with CUDA enabled. Tested on CUDA version 10.1.243.
 - Start and run the notebook [smartmeters.ipynb](smartmeters-ANP-RNN.ipynb)
 - To see a toy 1d regression problem, look at [anp-rnn_1d_regression.ipynb](anp-rnn_1d_regression.ipynb)
 
@@ -178,7 +185,7 @@ Changes for a sequential/predictive use case:
 - context and targets are still sampled randomly during training
 
 Changes for stability:
-- in eval mode, take mean of latent space, and mean of output isntead of sampling
+- in eval mode, take mean of latent space, and mean of output instead of sampling
 - use log_variance where possible (there is a flag to try without this, and it seems to help)
   - and add a minimum bound to std (in log domain) to avoid mode collapse (one path using log_var one not)
 - use log_prob loss (not mseloss or BCELoss)
