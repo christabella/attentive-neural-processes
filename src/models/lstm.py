@@ -7,7 +7,6 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
-from test_tube import Experiment, HyperOptArgumentParser
 import torchvision.transforms as transforms
 from argparse import ArgumentParser
 import json
@@ -213,30 +212,9 @@ class LSTM_PL(pl.LightningModule):
             train=False,
             transforms=transforms.ToTensor(),
         )
-        return DataLoader(dset_test, batch_size=self.hparams.batch_size, shuffle=False)
-
-    @staticmethod
-    def add_model_specific_args(parent_parser):
-        """
-        Specify the hyperparams for this LightningModule
-        """
-        # MODEL specific
-        parser = HyperOptArgumentParser(parents=[parent_parser])
-        parser.add_argument("--learning_rate", default=0.002, type=float)
-        parser.add_argument("--batch_size", default=16, type=int)
-        parser.add_argument("--lstm_dropout", default=0.5, type=float)
-        parser.add_argument("--hidden_size", default=16, type=int)
-        parser.add_argument("--input_size", default=8, type=int)
-        parser.add_argument("--lstm_layers", default=8, type=int)
-        parser.add_argument("--bidirectional", default=False, type=bool)
-
-        # training specific (for this model)
-        parser.add_argument("--window_length", type=int, default=12)
-        parser.add_argument("--target_length", type=int, default=2)
-        parser.add_argument("--max_nb_epochs", default=10, type=int)
-        parser.add_argument("--num_workers", default=4, type=int)
-
-        return parser
+        return DataLoader(dset_test,
+                          batch_size=self.hparams.batch_size,
+                          shuffle=False)
 
 
 def plot_from_loader(loader, model, vis_i=670, n=1, window_len=0):
