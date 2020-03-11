@@ -9,12 +9,12 @@ from src.utils import ObjectDict
 from matplotlib import pyplot as plt
 
 
-
 class LatentModelPL(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.hparams = ObjectDict()
-        self.hparams.update(hparams.__dict__ if hasattr(hparams, '__dict__') else hparams)
+        self.hparams.update(
+            hparams.__dict__ if hasattr(hparams, '__dict__') else hparams)
         self.model = LatentModel(**self.hparams)
         self._dfs = None
 
@@ -24,7 +24,8 @@ class LatentModelPL(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         assert all(torch.isfinite(d).all() for d in batch)
         context_x, context_y, target_x, target_y = batch
-        y_pred, kl, loss, loss_mse, y_std = self.forward(context_x, context_y, target_x, target_y)
+        y_pred, kl, loss, loss_mse, y_std = self.forward(
+            context_x, context_y, target_x, target_y)
         tensorboard_logs = {
             "train/loss": loss,
             "train/kl": kl.mean(),
@@ -39,8 +40,9 @@ class LatentModelPL(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         assert all(torch.isfinite(d).all() for d in batch)
         context_x, context_y, target_x, target_y = batch
-        y_pred, kl, loss, loss_mse, y_std = self.forward(context_x, context_y, target_x, target_y)
-        
+        y_pred, kl, loss, loss_mse, y_std = self.forward(
+            context_x, context_y, target_x, target_y)
+
         tensorboard_logs = {
             "val_loss": loss,
             "val/kl": kl.mean(),
@@ -61,13 +63,18 @@ class LatentModelPL(pl.LightningModule):
                 plt.show()
             else:
                 image = plot_from_loader_to_tensor(loader, self, i=vis_i)
-                self.logger.experiment.add_image('val/image', image, self.trainer.global_step)
-        
+                self.logger.experiment.add_image('val/image', image,
+                                                 self.trainer.global_step)
+
         keys = outputs[0]["log"].keys()
         # tensorboard_logs = {}
         # for k in keys:
         #     tensorboard_logs[k] = torch.stack([x["log"][k] for x in outputs if k in x["log"]]).mean()
-        tensorboard_logs = {k: torch.stack([x["log"][k] for x in outputs if k in x["log"]]).mean() for k in keys}
+        tensorboard_logs = {
+            k: torch.stack([x["log"][k] for x in outputs
+                            if k in x["log"]]).mean()
+            for k in keys
+        }
 
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         assert torch.isfinite(avg_loss)
@@ -86,8 +93,11 @@ class LatentModelPL(pl.LightningModule):
         return self.validation_end(*args, **kwargs)
 
     def configure_optimizers(self):
-        optim = torch.optim.AdamW(self.parameters(), lr=self.hparams["learning_rate"])
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, patience=2, verbose=True, min_lr=1e-5) # note early stopping has patient 3
+        optim = torch.optim.AdamW(self.parameters(),
+                                  lr=self.hparams["learning_rate"])
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optim, patience=2, verbose=True,
+            min_lr=1e-5)  # note early stopping has patient 3
         return [optim], [scheduler]
 
     def _get_cache_dfs(self):

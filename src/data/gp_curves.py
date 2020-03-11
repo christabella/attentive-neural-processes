@@ -3,7 +3,6 @@ import numpy as np
 import collections
 import torch
 
-
 # The (A)NP takes as input a `NPRegressionDescription` namedtuple with fields:
 #   `query`: a tuple containing ((context_x, context_y), target_x)
 #   `target_y`: a tensor containing the ground truth for the targets to be
@@ -29,19 +28,16 @@ class GPCurvesReader(object):
   some factor chosen randomly in a range. Outputs are independent gaussian
   processes.
       """
-
-    def __init__(
-        self,
-        batch_size,
-        max_num_context,
-        x_size=1,
-        y_size=1,
-        l1_scale=0.6,
-        sigma_scale=1.0,
-        random_kernel_parameters=True,
-        testing=False,
-        sequential=False
-    ):
+    def __init__(self,
+                 batch_size,
+                 max_num_context,
+                 x_size=1,
+                 y_size=1,
+                 l1_scale=0.6,
+                 sigma_scale=1.0,
+                 random_kernel_parameters=True,
+                 testing=False,
+                 sequential=False):
         """Creates a regression dataset of functions sampled from a GP.
 
     Args:
@@ -90,15 +86,16 @@ class GPCurvesReader(object):
         diff = xdata1 - xdata2  # [B, num_total_points, num_total_points, x_size]
 
         # [B, y_size, num_total_points, num_total_points, x_size]
-        norm = (diff[:, None, :, :, :] / l1[:, :, None, None, :]) ** 2
+        norm = (diff[:, None, :, :, :] / l1[:, :, None, None, :])**2
 
-        norm = torch.sum(norm, -1)  # [B, data_size, num_total_points, num_total_points]
+        norm = torch.sum(
+            norm, -1)  # [B, data_size, num_total_points, num_total_points]
 
         # [B, y_size, num_total_points, num_total_points]
-        kernel = ((sigma_f) ** 2)[:, :, None, None] * torch.exp(-0.5 * norm)
+        kernel = ((sigma_f)**2)[:, :, None, None] * torch.exp(-0.5 * norm)
 
         # Add some noise to the diagonal to make the cholesky work.
-        kernel += (sigma_noise ** 2) * torch.eye(num_total_points)
+        kernel += (sigma_noise**2) * torch.eye(num_total_points)
 
         return kernel
 
@@ -114,20 +111,19 @@ class GPCurvesReader(object):
         # If we are testing we want to have more targets and have them evenly
         # distributed in order to plot the function.
         if self._testing:
-            num_target = num_context*2
+            num_target = num_context * 2
             num_total_points = num_target
-            x_values = (
-                torch.linspace(-2, 2, num_target).unsqueeze(0).repeat(self._batch_size, 1)
-            )
+            x_values = (torch.linspace(-2, 2, num_target).unsqueeze(0).repeat(
+                self._batch_size, 1))
             x_values = x_values.unsqueeze(-1)
         # During training the number of target points and their x-positions are
         # selected at random
         else:
-            num_target = int(np.random.rand() * (self._max_num_context - num_context))
+            num_target = int(np.random.rand() *
+                             (self._max_num_context - num_context))
             num_total_points = num_context + num_target
-            x_values = (
-                torch.rand((self._batch_size, num_total_points, self._x_size)) * 4 - 2
-            )
+            x_values = (torch.rand(
+                (self._batch_size, num_total_points, self._x_size)) * 4 - 2)
 
         # For sequential
         if self._sequential:
@@ -136,23 +132,17 @@ class GPCurvesReader(object):
         # Set kernel parameters
         # Either choose a set of random parameters for the mini-batch
         if self._random_kernel_parameters:
-            l1 = (
-                torch.rand((self._batch_size, self._y_size, self._x_size))
-                * (self._l1_scale - 0.1)
-                + 0.1
-            )
-            sigma_f = (
-                torch.rand((self._batch_size, self._y_size)) * (self._sigma_scale - 0.1)
-                + 0.1
-            )
+            l1 = (torch.rand((self._batch_size, self._y_size, self._x_size)) *
+                  (self._l1_scale - 0.1) + 0.1)
+            sigma_f = (torch.rand((self._batch_size, self._y_size)) *
+                       (self._sigma_scale - 0.1) + 0.1)
 
         # Or use the same fixed parameters for all mini-batches
         else:
-            l1 = (
-                torch.ones((self._batch_size, self._y_size, self._x_size))
-                * self._l1_scale
-            )
-            sigma_f = torch.ones((self._batch_size, self._y_size)) * self._sigma_scale
+            l1 = (torch.ones((self._batch_size, self._y_size, self._x_size)) *
+                  self._l1_scale)
+            sigma_f = torch.ones(
+                (self._batch_size, self._y_size)) * self._sigma_scale
 
         # Pass the x_values through the Gaussian kernel
         # [batch_size, y_size, num_total_points, num_total_points]
@@ -164,8 +154,8 @@ class GPCurvesReader(object):
         # Sample a curve
         # [batch_size, y_size, num_total_points, 1]
         y_values = torch.matmul(
-            cholesky, torch.randn((self._batch_size, self._y_size, num_total_points, 1))
-        )
+            cholesky,
+            torch.randn((self._batch_size, self._y_size, num_total_points, 1)))
         # [batch_size, num_total_points, y_size]
         y_values = y_values.squeeze(3)
         y_values = y_values.permute(0, 2, 1)
@@ -185,8 +175,8 @@ class GPCurvesReader(object):
         else:
             # Select the targets which will consist of the context points as well as
             # some new target points
-            target_x = x_values[:, : num_target + num_context, :]
-            target_y = y_values[:, : num_target + num_context, :]
+            target_x = x_values[:, :num_target + num_context, :]
+            target_y = y_values[:, :num_target + num_context, :]
 
             # Select the observations
             context_x = x_values[:, :num_context, :]

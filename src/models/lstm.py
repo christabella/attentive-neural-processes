@@ -23,7 +23,12 @@ from src.utils import ObjectDict
 
 
 class SequenceDfDataSet(torch.utils.data.Dataset):
-    def __init__(self, df, hparams, label_names=None, train=True, transforms=None):
+    def __init__(self,
+                 df,
+                 hparams,
+                 label_names=None,
+                 train=True,
+                 transforms=None):
         super().__init__()
         self.data = df
         self.hparams = hparams
@@ -32,7 +37,9 @@ class SequenceDfDataSet(torch.utils.data.Dataset):
         self.transforms = transforms
 
     def __len__(self):
-        return len(self.data) - self.hparams.window_length - self.hparams.target_length - 1
+        return len(
+            self.data
+        ) - self.hparams.window_length - self.hparams.target_length - 1
 
     def iloc(self, idx):
         k = idx + self.hparams.window_length + self.hparams.target_length
@@ -44,17 +51,19 @@ class SequenceDfDataSet(torch.utils.data.Dataset):
         x_rows = self.data.iloc[i:k].copy()
         # x_rows = x_rows.drop(columns=self.label_names)
         # Note the NP models do have access to the previous labels for the context, we will allow the LSTM to do the same. Although it will likely just return an autoregressive solution for the first half...
-        x_rows.loc[x_rows.index[self.hparams.window_length:], self.label_names] = 0
-        assert len(x_rows.loc[x_rows.index[self.hparams.window_length:], self.label_names])>0
-        assert (x_rows.loc[x_rows.index[self.hparams.window_length:], self.label_names]==0).all().all()
+        x_rows.loc[x_rows.index[self.hparams.window_length:], self.
+                   label_names] = 0
+        assert len(x_rows.loc[x_rows.index[self.hparams.window_length:], self.
+                              label_names]) > 0
+        assert (x_rows.loc[x_rows.index[self.hparams.window_length:], self.
+                           label_names] == 0).all().all()
 
-        y_rows = self.data[self.label_names].iloc[i+1:k+1].copy()
+        y_rows = self.data[self.label_names].iloc[i + 1:k + 1].copy()
         #         print(i,j,k)
 
         # add seconds since start of window index
-        x_rows["tstp"] = (
-            x_rows["tstp"] - x_rows["tstp"].iloc[0]
-        ).dt.total_seconds() / 86400.0
+        x_rows["tstp"] = (x_rows["tstp"] -
+                          x_rows["tstp"].iloc[0]).dt.total_seconds() / 86400.0
         return x_rows, y_rows
 
     def __getitem__(self, idx):
@@ -81,10 +90,8 @@ class LSTMNet(nn.Module):
             bidirectional=self.hparams.bidirectional,
             dropout=self.hparams.lstm_dropout,
         )
-        self.hidden_out_size = (
-            self.hparams.hidden_size
-            * (self.hparams.bidirectional + 1)
-        )
+        self.hidden_out_size = (self.hparams.hidden_size *
+                                (self.hparams.bidirectional + 1))
         self.linear = nn.Linear(self.hidden_out_size, 1)
 
     def forward(self, x):
@@ -95,14 +102,18 @@ class LSTMNet(nn.Module):
 
 
 class LSTM_PL(pl.LightningModule):
+    """Usage:
+      trial = optuna.trial.FixedTrial(
+      model = LSTM_PL(trial.params)
+      trainer.fit(model)
+    """
     def __init__(self, hparams):
         # TODO make label name configurable
         # TODO make data source configurable
         super().__init__()
         self.hparams = ObjectDict()
         self.hparams.update(
-            hparams.__dict__ if hasattr(hparams, "__dict__") else hparams
-        )
+            hparams.__dict__ if hasattr(hparams, "__dict__") else hparams)
         self._model = LSTMNet(self.hparams)
         self._dfs = None
 
@@ -134,18 +145,25 @@ class LSTM_PL(pl.LightningModule):
             loader = self.val_dataloader()[0]
             vis_i = min(int(self.hparams["vis_i"]), len(loader.dataset))
         if isinstance(self.hparams["vis_i"], str):
-            image = plot_from_loader(loader, self, vis_i=vis_i, window_len=self.hparams["window_length"])
+            image = plot_from_loader(loader,
+                                     self,
+                                     vis_i=vis_i,
+                                     window_len=self.hparams["window_length"])
             plt.show()
         else:
-            image = plot_from_loader_to_tensor(loader, self, vis_i=vis_i, window_len=self.hparams["window_length"])
-            self.logger.experiment.add_image(
-                "val/image", image, self.trainer.global_step
-            )
+            image = plot_from_loader_to_tensor(
+                loader,
+                self,
+                vis_i=vis_i,
+                window_len=self.hparams["window_length"])
+            self.logger.experiment.add_image("val/image", image,
+                                             self.trainer.global_step)
 
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         keys = outputs[0]["log"].keys()
         tensorboard_logs = {
-            k: torch.stack([x["log"][k] for x in outputs if k in x["log"]]).mean()
+            k: torch.stack([x["log"][k] for x in outputs
+                            if k in x["log"]]).mean()
             for k in keys
         }
         tensorboard_logs_str = {k: f"{v}" for k, v in tensorboard_logs.items()}
@@ -160,10 +178,11 @@ class LSTM_PL(pl.LightningModule):
         return self.validation_end(*args, **kwargs)
 
     def configure_optimizers(self):
-        optim = torch.optim.Adam(self.parameters(), lr=self.hparams["learning_rate"])
+        optim = torch.optim.Adam(self.parameters(),
+                                 lr=self.hparams["learning_rate"])
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optim, patience=2, verbose=True, min_lr=1e-5
-        )  # note early stopping has patient 3
+            optim, patience=2, verbose=True,
+            min_lr=1e-5)  # note early stopping has patient 3
         return [optim], [scheduler]
 
     def _get_cache_dfs(self):
@@ -200,7 +219,9 @@ class LSTM_PL(pl.LightningModule):
             train=False,
             transforms=transforms.ToTensor(),
         )
-        return DataLoader(dset_test, batch_size=self.hparams.batch_size, shuffle=False)
+        return DataLoader(dset_test,
+                          batch_size=self.hparams.batch_size,
+                          shuffle=False)
 
     @pl.data_loader
     def test_dataloader(self):

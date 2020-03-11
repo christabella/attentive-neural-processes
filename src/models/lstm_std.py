@@ -22,17 +22,23 @@ from src.data.smart_meter import get_smartmeter_df
 
 from src.utils import ObjectDict
 
+
 def log_prob_sigma(value, loc, log_scale):
     """A slightly more stable (not confirmed yet) log prob taking in log_var instead of scale.
     modified from https://github.com/pytorch/pytorch/blob/2431eac7c011afe42d4c22b8b3f46dedae65e7c0/torch/distributions/normal.py#L65
     """
     var = torch.exp(log_scale * 2)
-    return (
-        -((value - loc) ** 2) / (2 * var) - log_scale - math.log(math.sqrt(2 * math.pi))
-    )
+    return (-((value - loc)**2) / (2 * var) - log_scale -
+            math.log(math.sqrt(2 * math.pi)))
+
 
 class SequenceDfDataSet(torch.utils.data.Dataset):
-    def __init__(self, df, hparams, label_names=None, train=True, transforms=None):
+    def __init__(self,
+                 df,
+                 hparams,
+                 label_names=None,
+                 train=True,
+                 transforms=None):
         super().__init__()
         self.data = df
         self.hparams = hparams
@@ -41,7 +47,9 @@ class SequenceDfDataSet(torch.utils.data.Dataset):
         self.transforms = transforms
 
     def __len__(self):
-        return len(self.data) - self.hparams.window_length - self.hparams.target_length - 1
+        return len(
+            self.data
+        ) - self.hparams.window_length - self.hparams.target_length - 1
 
     def iloc(self, idx):
         k = idx + self.hparams.window_length + self.hparams.target_length
@@ -53,17 +61,19 @@ class SequenceDfDataSet(torch.utils.data.Dataset):
         x_rows = self.data.iloc[i:k].copy()
         # x_rows = x_rows.drop(columns=self.label_names)
         # Note the NP models do have access to the previous labels for the context, we will allow the LSTM to do the same. Although it will likely just return an autoregressive solution for the first half...
-        x_rows.loc[x_rows.index[self.hparams.window_length:], self.label_names] = 0
-        assert len(x_rows.loc[x_rows.index[self.hparams.window_length:], self.label_names])>0
-        assert (x_rows.loc[x_rows.index[self.hparams.window_length:], self.label_names]==0).all().all()
+        x_rows.loc[x_rows.index[self.hparams.window_length:], self.
+                   label_names] = 0
+        assert len(x_rows.loc[x_rows.index[self.hparams.window_length:], self.
+                              label_names]) > 0
+        assert (x_rows.loc[x_rows.index[self.hparams.window_length:], self.
+                           label_names] == 0).all().all()
 
-        y_rows = self.data[self.label_names].iloc[i+1:k+1].copy()
+        y_rows = self.data[self.label_names].iloc[i + 1:k + 1].copy()
         #         print(i,j,k)
 
         # add seconds since start of window index
-        x_rows["tstp"] = (
-            x_rows["tstp"] - x_rows["tstp"].iloc[0]
-        ).dt.total_seconds() / 86400.0
+        x_rows["tstp"] = (x_rows["tstp"] -
+                          x_rows["tstp"].iloc[0]).dt.total_seconds() / 86400.0
         return x_rows, y_rows
 
     def __getitem__(self, idx):
@@ -78,7 +88,7 @@ class SequenceDfDataSet(torch.utils.data.Dataset):
 
 
 class LSTMNet(nn.Module):
-    def __init__(self, hparams, _min_std = 0.05):
+    def __init__(self, hparams, _min_std=0.05):
         super().__init__()
         self.hparams = hparams
         self._min_std = _min_std
@@ -91,10 +101,8 @@ class LSTMNet(nn.Module):
             bidirectional=self.hparams.bidirectional,
             dropout=self.hparams.lstm_dropout,
         )
-        self.hidden_out_size = (
-            self.hparams.hidden_size
-            * (self.hparams.bidirectional + 1)
-        )
+        self.hidden_out_size = (self.hparams.hidden_size *
+                                (self.hparams.bidirectional + 1))
         self.mean = nn.Linear(self.hidden_out_size, 1)
         self.std = nn.Linear(self.hidden_out_size, 1)
 
@@ -103,7 +111,8 @@ class LSTMNet(nn.Module):
         # outputs: [B, T, num_direction * H]
         mean = self.mean(outputs).squeeze(2)
         log_sigma = self.std(outputs).squeeze(2)
-        log_sigma = torch.clamp(log_sigma, math.log(self._min_std), -math.log(1e-5))
+        log_sigma = torch.clamp(log_sigma, math.log(self._min_std),
+                                -math.log(1e-5))
         return mean, log_sigma
 
 
@@ -114,8 +123,7 @@ class LSTM_PL(pl.LightningModule):
         super().__init__()
         self.hparams = ObjectDict()
         self.hparams.update(
-            hparams.__dict__ if hasattr(hparams, "__dict__") else hparams
-        )
+            hparams.__dict__ if hasattr(hparams, "__dict__") else hparams)
         self._model = LSTMNet(self.hparams)
         self._dfs = None
 
@@ -137,9 +145,14 @@ class LSTM_PL(pl.LightningModule):
         y = y[:, self.hparams.window_length:]
 
         loss_mse = F.mse_loss(mean, y)
-        loss_p = - log_prob_sigma(y, mean, log_sigma).mean()
-        loss = loss_p # + loss_mse
-        tensorboard_logs = {"train/loss": loss, 'train/loss_mse': loss_mse, "train/loss_p": loss_p, "train/sigma": sigma.mean()}
+        loss_p = -log_prob_sigma(y, mean, log_sigma).mean()
+        loss = loss_p  # + loss_mse
+        tensorboard_logs = {
+            "train/loss": loss,
+            'train/loss_mse': loss_mse,
+            "train/loss_p": loss_p,
+            "train/sigma": sigma.mean()
+        }
         return {"loss": loss, "log": tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
@@ -157,8 +170,14 @@ class LSTM_PL(pl.LightningModule):
 
         loss_mse = F.mse_loss(mean, y)
         loss_p = -log_prob_sigma(y, mean, log_sigma).mean()
-        loss = loss_p # + loss_mse
-        tensorboard_logs = {"val_loss": loss, 'val/loss':loss, 'val/loss_mse': loss_mse, "val/loss_p": loss_p, "val/sigma": sigma.mean()}
+        loss = loss_p  # + loss_mse
+        tensorboard_logs = {
+            "val_loss": loss,
+            'val/loss': loss,
+            'val/loss_mse': loss_mse,
+            "val/loss_p": loss_p,
+            "val/sigma": sigma.mean()
+        }
         return {"val_loss": loss, "log": tensorboard_logs}
 
     def validation_end(self, outputs):
@@ -171,14 +190,14 @@ class LSTM_PL(pl.LightningModule):
             plt.show()
         else:
             image = plot_from_loader_to_tensor(loader, self, vis_i=vis_i)
-            self.logger.experiment.add_image(
-                "val/image", image, self.trainer.global_step
-            )
+            self.logger.experiment.add_image("val/image", image,
+                                             self.trainer.global_step)
 
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         keys = outputs[0]["log"].keys()
         tensorboard_logs = {
-            k: torch.stack([x["log"][k] for x in outputs if k in x["log"]]).mean()
+            k: torch.stack([x["log"][k] for x in outputs
+                            if k in x["log"]]).mean()
             for k in keys
         }
         tensorboard_logs_str = {k: f"{v}" for k, v in tensorboard_logs.items()}
@@ -193,10 +212,11 @@ class LSTM_PL(pl.LightningModule):
         return self.validation_end(*args, **kwargs)
 
     def configure_optimizers(self):
-        optim = torch.optim.Adam(self.parameters(), lr=self.hparams["learning_rate"])
+        optim = torch.optim.Adam(self.parameters(),
+                                 lr=self.hparams["learning_rate"])
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optim, patience=2, verbose=True, min_lr=1e-5
-        )  # note early stopping has patient 3
+            optim, patience=2, verbose=True,
+            min_lr=1e-5)  # note early stopping has patient 3
         return [optim], [scheduler]
 
     def _get_cache_dfs(self):
@@ -233,7 +253,9 @@ class LSTM_PL(pl.LightningModule):
             train=False,
             transforms=transforms.ToTensor(),
         )
-        return DataLoader(dset_test, batch_size=self.hparams.batch_size, shuffle=False)
+        return DataLoader(dset_test,
+                          batch_size=self.hparams.batch_size,
+                          shuffle=False)
 
     @pl.data_loader
     def test_dataloader(self):
