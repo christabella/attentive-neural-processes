@@ -155,3 +155,17 @@ class LatentModelPL(pl.LightningModule):
                 sample=False,
                 context_in_target=self.hparams["context_in_target"]),
         )
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = ArgumentParser(parents=[parent_parser])
+        # Required positional arguments for LatentModelPL
+        parser.add_argument('--x_dim', type=int, default=128)
+        parser.add_argument('--y_dim', type=int, default=128)
+        # Other required arguments
+        parser.add_argument('--epochs', type=int, default=128)
+        parent_parser.add_argument('--use-16bit',
+                                   dest='use_16bit',
+                                   action='store_true',
+                                   help='if true uses 16 bit precision')
+        return parser

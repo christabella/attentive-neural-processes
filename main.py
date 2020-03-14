@@ -65,7 +65,7 @@ if __name__ == '__main__':
                                help='if true uses 16 bit precision')
 
     # each LightningModule defines arguments relevant to it
-    parser = LatentModelPL.add_model_specific_args(parent_parser, root_dir)
+    parser = LatentModelPL.add_model_specific_args(parent_parser)
     hyperparams = parser.parse_args()
 
     # ---------------------
