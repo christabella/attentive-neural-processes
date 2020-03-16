@@ -1,3 +1,5 @@
+"""PyTorch Lightning Module that wraps a Neural Process specified by LatentModel."""
+
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -55,6 +57,7 @@ class LatentModelPL(pl.LightningModule):
     def validation_end(self, outputs):
         if int(self.hparams["vis_i"]) > 0:
             # https://github.com/PytorchLightning/pytorch-lightning/blob/f8d9f8f/pytorch_lightning/core/lightning.py#L293
+            # loader is torch.utils.data.DataLoader
             loader = self.val_dataloader()[0]
             vis_i = min(int(self.hparams["vis_i"]), len(loader.dataset))
             # print('vis_i', vis_i)
@@ -159,13 +162,68 @@ class LatentModelPL(pl.LightningModule):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser])
-        # Required positional arguments for LatentModelPL
-        parser.add_argument('--x_dim', type=int, default=128)
-        parser.add_argument('--y_dim', type=int, default=128)
-        # Other required arguments
-        parser.add_argument('--epochs', type=int, default=128)
-        parent_parser.add_argument('--use-16bit',
-                                   dest='use_16bit',
-                                   action='store_true',
-                                   help='if true uses 16 bit precision')
+        parser.add_argument('--epochs', type=int, default=10)
+        parser.add_argument('--learning-rate', type=float, default=1e-4)
+        parser.add_argument('--latent_enc_self_attn_type',
+                            type=str,
+                            default='uniform',
+                            help='Attention type')
+
+        parser.add_argument('--det_enc_self_attn_type',
+                            type=str,
+                            default='uniform',
+                            help='Attention type')
+        parser.add_argument('--det_enc_cross_attn_type',
+                            type=str,
+                            default='multihead',
+                            help='Attention type for determinstic encoder')
+        parser.add_argument('--learning_rate',
+                            type=float,
+                            default=1e-2,
+                            help='')
+        parser.add_argument('--hidden_dim', type=int, default=128, help='')
+        parser.add_argument('--latent_dim', type=int, default=128, help='')
+        parser.add_argument('--attention_layers', type=int, default=2, help='')
+        parser.add_argument('--n_latent_encoder_layers',
+                            type=int,
+                            default=2,
+                            help='')
+        parser.add_argument('--n_det_encoder_layers',
+                            type=int,
+                            default=2,
+                            help='')
+        parser.add_argument('--n_decoder_layers', type=int, default=2, help='')
+        parser.add_argument('--dropout', type=int, default=0, help='')
+        parser.add_argument('--attention_dropout',
+                            type=int,
+                            default=0,
+                            help='')
+        parser.add_argument('--batchnorm', action='store_true', help='')
+        # True by default
+        parser.add_argument('--use_deterministic_path',
+                            action='store_false',
+                            help='')
+        parser.add_argument('--use_self_attn', action='store_false', help='')
+        # False by default
+        parser.add_argument('--use_lvar', action='store_true', help='')
+        parser.add_argument('--use_rnn', action='store_true', help='')
+        parser.add_argument('--context_in_target',
+                            action='store_true',
+                            help='')
+
+        parser.add_argument('--min_std', type=int, default=0.005, help='')
+        parser.add_argument('--grad_clip', type=int, default=40, help='')
+        parser.add_argument('--num_context', type=int, default=24 * 4, help='')
+        parser.add_argument('--num_extra_target',
+                            type=int,
+                            default=24 * 4,
+                            help='')
+        parser.add_argument('--max_nb_epochs', type=int, default=10, help='')
+        parser.add_argument('--num_workers', type=int, default=3, help='')
+        parser.add_argument('--batch_size', type=int, default=16, help='')
+        parser.add_argument('--num_heads', type=int, default=8, help='')
+        parser.add_argument('--x_dim', type=int, default=17, help='')
+        parser.add_argument('--y_dim', type=int, default=1, help='')
+        parser.add_argument('--vis_i', type=int, default=670, help='')
+
         return parser
