@@ -5,7 +5,8 @@
       main: main
       output-scalars: no
       flags-import: all
-
+      requires:
+        - file: data
   sourcecode:
     - exclude: '*.ipynb'
     - exclude: '.*'
