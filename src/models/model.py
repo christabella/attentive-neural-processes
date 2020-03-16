@@ -1,3 +1,7 @@
+"""ANP Model LatentModel. Can be used directly (see anp-rnn_1d_regression.ipynb)
+or wrapped in PyTorch Lightning (PL) as LatentModelPL (models/lightning_anp.py).
+"""
+
 import torch
 from torch import nn
 import torch.nn.functional as F
