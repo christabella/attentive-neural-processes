@@ -1,0 +1,16 @@
+- model: neural_process
+  operations:
+    train:
+      description: Train the model
+      main: main
+      output-scalars: no
+      flags-import: all
+
+  sourcecode:
+    - exclude: '*.ipynb'
+    - exclude: '.*'
+    - exclude:
+        dir: ./data
+    - exclude:
+        dir: docs
+
