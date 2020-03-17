@@ -29,11 +29,11 @@ class LatentModelPL(pl.LightningModule):
         y_pred, kl, loss, loss_mse, y_std = self.forward(
             context_x, context_y, target_x, target_y)
         tensorboard_logs = {
-            "train/loss": loss,
-            "train/kl": kl.mean(),
-            "train/std": y_std.mean(),
-            "train/mse": loss_mse.mean(),
-            "train/mse": F.mse_loss(y_pred, target_y).mean(),
+            "train_loss": loss,
+            "train_kl": kl.mean(),
+            "train_std": y_std.mean(),
+            "train_mse": loss_mse.mean(),
+            "train_mse_functional": F.mse_loss(y_pred, target_y).mean(),
         }
         assert torch.isfinite(loss)
         # print('device', next(self.model.parameters()).device)
@@ -47,14 +47,16 @@ class LatentModelPL(pl.LightningModule):
 
         tensorboard_logs = {
             "val_loss": loss,
-            "val/kl": kl.mean(),
-            "val/mse": loss_mse.mean(),
-            "val/std": y_std.mean(),
-            "val/mse": F.mse_loss(y_pred, target_y).mean(),
+            "val_kl": kl.mean(),
+            "val_mse": loss_mse.mean(),
+            "val_std": y_std.mean(),
+            "val_mse_functional": F.mse_loss(y_pred, target_y).mean(),
         }
         return {"val_loss": loss, "log": tensorboard_logs}
 
-    def validation_end(self, outputs):
+    def validation_epoch_end(self, outputs):
+        """Outputs are a list defined by validation_step().
+        """
         if int(self.hparams["vis_i"]) > 0:
             # https://github.com/PytorchLightning/pytorch-lightning/blob/f8d9f8f/pytorch_lightning/core/lightning.py#L293
             # loader is torch.utils.data.DataLoader
@@ -66,7 +68,7 @@ class LatentModelPL(pl.LightningModule):
                 plt.show()
             else:
                 image = plot_from_loader_to_tensor(loader, self, i=vis_i)
-                self.logger.experiment.add_image('val/image', image,
+                self.logger.experiment.add_image('val_image', image,
                                                  self.trainer.global_step)
 
         keys = outputs[0]["log"].keys()

@@ -10,6 +10,7 @@ import numpy as np
 import torch
 
 import pytorch_lightning as pl
+from pytorch_lightning.logging.tensorboard import TensorBoardLogger
 from src.models.lightning_anp import LatentModelPL
 
 SEED = 2334
@@ -38,7 +39,8 @@ def main(hparams):
     # ------------------------
     # 3 START TRAINING
     # ------------------------
-    trainer.fit(model)
+    logger = TensorBoardLogger("tensorboard_logs")
+    trainer.fit(model, logger=logger)
 
 
 if __name__ == '__main__':
