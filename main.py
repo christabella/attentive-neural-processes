@@ -10,8 +10,9 @@ import numpy as np
 import torch
 
 import pytorch_lightning as pl
-from pytorch_lightning.logging.tensorboard import TensorBoardLogger
+from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 from src.models.lightning_anp import LatentModelPL
+from pytorch_lightning.callbacks import EarlyStopping
 
 SEED = 2334
 torch.manual_seed(SEED)
@@ -31,16 +32,26 @@ def main(hparams):
     # ------------------------
     # 2 INIT TRAINER
     # ------------------------
+    logger = TensorBoardLogger("tensorboard_logs")
+    early_stop_callback = EarlyStopping(
+        monitor='val_loss',
+        min_delta=0.00,
+        patience=3,  # Epochs of no improvement.
+        verbose=True,
+        mode='min')
     trainer = pl.Trainer(max_epochs=hparams.epochs,
                          gpus=hparams.gpus,
                          distributed_backend=hparams.distributed_backend,
-                         use_amp=hparams.use_16bit)
+                         use_amp=hparams.use_16bit,
+                         logger=logger,
+                         gradient_clip_val=hparams.grad_clip,
+                         early_stop_callback=early_stop_callback,
+                         print_nan_grads=True)
 
     # ------------------------
     # 3 START TRAINING
     # ------------------------
-    logger = TensorBoardLogger("tensorboard_logs")
-    trainer.fit(model, logger=logger)
+    trainer.fit(model)
 
 
 if __name__ == '__main__':

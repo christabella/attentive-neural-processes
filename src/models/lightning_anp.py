@@ -57,39 +57,34 @@ class LatentModelPL(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         """Outputs are a list defined by validation_step().
         """
-        if int(self.hparams["vis_i"]) > 0:
+        # loader is torch.utils.data.DataLoader
+        loader = self.val_dataloader()
+        vis_i = min(int(self.hparams["vis_i"]), len(loader.dataset))
+        # print('vis_i', vis_i)
+        if isinstance(self.hparams["vis_i"], str):
+            image = plot_from_loader(loader, self, i=int(vis_i))
+            plt.show()
+        else:
+            image = plot_from_loader_to_tensor(loader, self, i=vis_i)
             # https://github.com/PytorchLightning/pytorch-lightning/blob/f8d9f8f/pytorch_lightning/core/lightning.py#L293
-            # loader is torch.utils.data.DataLoader
-            loader = self.val_dataloader()[0]
-            vis_i = min(int(self.hparams["vis_i"]), len(loader.dataset))
-            # print('vis_i', vis_i)
-            if isinstance(self.hparams["vis_i"], str):
-                image = plot_from_loader(loader, self, i=int(vis_i))
-                plt.show()
-            else:
-                image = plot_from_loader_to_tensor(loader, self, i=vis_i)
-                self.logger.experiment.add_image('val_image', image,
-                                                 self.trainer.global_step)
+            self.logger.experiment.add_image('val_image', image,
+                                             self.trainer.global_step)
 
         keys = outputs[0]["log"].keys()
-        # tensorboard_logs = {}
-        # for k in keys:
-        #     tensorboard_logs[k] = torch.stack([x["log"][k] for x in outputs if k in x["log"]]).mean()
         tensorboard_logs = {
-            k: torch.stack([x["log"][k] for x in outputs
-                            if k in x["log"]]).mean()
+            k: torch.stack([x["log"][k] for x in outputs]).mean()
             for k in keys
         }
-
+        # Average over all batches (outputs is a list of all batch outputs).
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         assert torch.isfinite(avg_loss)
-        tensorboard_logs_str = {k: f'{v}' for k, v in tensorboard_logs.items()}
-        print(f"step {self.trainer.global_step}, {tensorboard_logs_str}")
+        # tensorboard_logs_str = {k: f'{v}' for k, v in tensorboard_logs.items()}
+        # print(f"step {self.trainer.global_step}, {tensorboard_logs_str}")
 
         # Log hparams with metric, doesn't work
         # self.logger.experiment.add_hparams(self.hparams.__dict__, {"avg_val_loss": avg_loss})
 
-        return {"avg_val_loss": avg_loss, "log": tensorboard_logs}
+        return {"val_loss": avg_loss, "log": tensorboard_logs}
 
     def test_step(self, *args, **kwargs):
         return self.validation_step(*args, **kwargs)
