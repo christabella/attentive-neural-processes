@@ -52,20 +52,23 @@ class LatentModelPL(pl.LightningModule):
             "val_std": y_std.mean(),
             "val_mse_functional": F.mse_loss(y_pred, target_y).mean(),
         }
-        return {"val_loss": loss, "log": tensorboard_logs}
+        return {"loss": loss, "log": tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
         """Outputs are a list defined by validation_step().
         """
         # loader is torch.utils.data.DataLoader
         loader = self.val_dataloader()
-        vis_i = min(int(self.hparams["vis_i"]), len(loader.dataset))
+
         # print('vis_i', vis_i)
         if isinstance(self.hparams["vis_i"], str):
-            image = plot_from_loader(loader, self, i=int(vis_i))
+            image = plot_from_loader(loader, self, i=self.hparams["vis_i"])
             plt.show()
         else:
-            image = plot_from_loader_to_tensor(loader, self, i=vis_i)
+            # plt.savefig('histogram.pgf')
+            image = plot_from_loader_to_tensor(loader,
+                                               self,
+                                               i=self.hparams["vis_i"])
             # https://github.com/PytorchLightning/pytorch-lightning/blob/f8d9f8f/pytorch_lightning/core/lightning.py#L293
             self.logger.experiment.add_image('val_image', image,
                                              self.trainer.global_step)
@@ -76,7 +79,7 @@ class LatentModelPL(pl.LightningModule):
             for k in keys
         }
         # Average over all batches (outputs is a list of all batch outputs).
-        avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
+        avg_loss = torch.stack([x["loss"] for x in outputs]).mean()
         assert torch.isfinite(avg_loss)
         # tensorboard_logs_str = {k: f'{v}' for k, v in tensorboard_logs.items()}
         # print(f"step {self.trainer.global_step}, {tensorboard_logs_str}")
