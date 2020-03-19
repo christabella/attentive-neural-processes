@@ -39,14 +39,16 @@ def main(hparams):
         patience=3,  # Epochs of no improvement.
         verbose=True,
         mode='min')
-    trainer = pl.Trainer(max_epochs=hparams.epochs,
-                         gpus=hparams.gpus,
-                         distributed_backend=hparams.distributed_backend,
-                         use_amp=hparams.use_16bit,
-                         logger=logger,
-                         gradient_clip_val=hparams.grad_clip,
-                         early_stop_callback=early_stop_callback,
-                         print_nan_grads=True)
+
+    trainer = pl.Trainer(
+        max_epochs=hparams.epochs,
+        gpus=hparams.gpus,
+        # distributed_backend=hparams.distributed_backend,
+        use_amp=hparams.use_16bit,
+        logger=logger,
+        gradient_clip_val=hparams.grad_clip,
+        early_stop_callback=early_stop_callback,
+        print_nan_grads=True)
 
     # ------------------------
     # 3 START TRAINING
@@ -60,13 +62,12 @@ if __name__ == '__main__':
     # ------------------------
     # these are project-wide arguments
 
-    root_dir = os.path.dirname(os.path.realpath(__file__))
     parent_parser = ArgumentParser(add_help=False)
 
     # gpu args
     parent_parser.add_argument('--gpus',
                                type=int,
-                               default=2,
+                               default=1,
                                help='how many gpus')
     parent_parser.add_argument('--distributed_backend',
                                type=str,

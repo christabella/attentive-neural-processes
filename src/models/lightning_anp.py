@@ -48,11 +48,11 @@ class LatentModelPL(pl.LightningModule):
         tensorboard_logs = {
             "val_loss": loss,
             "val_kl": kl.mean(),
-            "val_mse": loss_mse.mean(),
             "val_std": y_std.mean(),
+            "val_mse": loss_mse.mean(),
             "val_mse_functional": F.mse_loss(y_pred, target_y).mean(),
         }
-        return {"loss": loss, "log": tensorboard_logs}
+        return {"val_loss": loss, "log": tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
         """Outputs are a list defined by validation_step().
@@ -79,7 +79,7 @@ class LatentModelPL(pl.LightningModule):
             for k in keys
         }
         # Average over all batches (outputs is a list of all batch outputs).
-        avg_loss = torch.stack([x["loss"] for x in outputs]).mean()
+        avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         assert torch.isfinite(avg_loss)
         # tensorboard_logs_str = {k: f'{v}' for k, v in tensorboard_logs.items()}
         # print(f"step {self.trainer.global_step}, {tensorboard_logs_str}")
