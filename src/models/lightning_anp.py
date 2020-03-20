@@ -23,35 +23,42 @@ class LatentModelPL(pl.LightningModule):
     def forward(self, context_x, context_y, target_x, target_y):
         return self.model(context_x, context_y, target_x, target_y)
 
-    def training_step(self, batch, batch_idx):
+    def batch_step(self, batch, stage='train'):
         assert all(torch.isfinite(d).all() for d in batch)
         context_x, context_y, target_x, target_y = batch
         y_pred, kl, loss, loss_mse, y_std = self.forward(
             context_x, context_y, target_x, target_y)
+
         tensorboard_logs = {
-            "train_loss": loss,
-            "train_kl": kl.mean(),
-            "train_std": y_std.mean(),
-            "train_mse": loss_mse.mean(),
-            "train_mse_functional": F.mse_loss(y_pred, target_y).mean(),
+            f"{stage}_loss": loss,
+            f"{stage}_kl": kl.mean(),
+            f"{stage}_std": y_std.mean(),
+            f"{stage}_mse": loss_mse.mean(),
+            f"{stage}_mse_functional": F.mse_loss(y_pred, target_y).mean(),
+            f"{stage}_y_pred": y_pred.mean(),
+            f"{stage}_context_x": context_x.mean(),
+            f"{stage}_context_y": context_y.mean(),
+            f"{stage}_target_x": target_x.mean(),
+            f"{stage}_target_y": target_y.mean()
         }
         assert torch.isfinite(loss)
-        # print('device', next(self.model.parameters()).device)
+        return loss, tensorboard_logs
+
+    def training_step(self, batch, batch_idx):
+        loss, tensorboard_logs = self.batch_step(batch, stage='train')
+        PLOT_INTERVAL = 100
+        if batch_idx % PLOT_INTERVAL == 0:
+            loader = self.val_dataloader()
+            image = plot_from_loader_to_tensor(loader,
+                                               self,
+                                               i=self.hparams["vis_i"])
+            # https://github.com/PytorchLightning/pytorch-lightning/blob/f8d9f8f/pytorch_lightning/core/lightning.py#L293
+            self.logger.experiment.add_image('train_image', image,
+                                             self.trainer.global_step)
         return {"loss": loss, "log": tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
-        assert all(torch.isfinite(d).all() for d in batch)
-        context_x, context_y, target_x, target_y = batch
-        y_pred, kl, loss, loss_mse, y_std = self.forward(
-            context_x, context_y, target_x, target_y)
-
-        tensorboard_logs = {
-            "val_loss": loss,
-            "val_kl": kl.mean(),
-            "val_std": y_std.mean(),
-            "val_mse": loss_mse.mean(),
-            "val_mse_functional": F.mse_loss(y_pred, target_y).mean(),
-        }
+        loss, tensorboard_logs = self.batch_step(batch, stage='val')
         return {"val_loss": loss, "log": tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
@@ -81,19 +88,37 @@ class LatentModelPL(pl.LightningModule):
         # Average over all batches (outputs is a list of all batch outputs).
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         assert torch.isfinite(avg_loss)
-        # tensorboard_logs_str = {k: f'{v}' for k, v in tensorboard_logs.items()}
-        # print(f"step {self.trainer.global_step}, {tensorboard_logs_str}")
-
-        # Log hparams with metric, doesn't work
-        # self.logger.experiment.add_hparams(self.hparams.__dict__, {"avg_val_loss": avg_loss})
-
         return {"val_loss": avg_loss, "log": tensorboard_logs}
 
-    def test_step(self, *args, **kwargs):
-        return self.validation_step(*args, **kwargs)
+    def test_step(self, batch, batch_idx):
+        loss, tensorboard_logs = self.batch_step(batch, stage='test')
+        return {"test_loss": loss, "log": tensorboard_logs}
 
-    def test_end(self, *args, **kwargs):
-        return self.validation_end(*args, **kwargs)
+    def test_epoch_end(self, outputs):
+        loader = self.test_dataloader()
+        image = plot_from_loader(loader, self, i=self.hparams["vis_i"])
+        plt.savefig('test_plot.pgf')
+
+        image = plot_from_loader_to_tensor(loader,
+                                           self,
+                                           i=self.hparams["vis_i"])
+        self.logger.experiment.add_image('test_image', image,
+                                         self.trainer.global_step)
+        keys = outputs[0]["log"].keys()
+        tensorboard_logs = {
+            k: torch.stack([x["log"][k] for x in outputs]).mean()
+            for k in keys
+        }
+        # Average over all batches (outputs is a list of all batch outputs).
+        avg_loss = torch.stack([x["test_loss"] for x in outputs]).mean()
+        assert torch.isfinite(avg_loss)
+
+        return {
+            "test_loss": avg_loss,
+            "progress_bar": tensorboard_logs  # Print test_* scalars in stdout.
+            # Dont log these test_* scalars as they're just a single point.
+            # "log": tensorboard_logs,
+        }
 
     def configure_optimizers(self):
         optim = torch.optim.AdamW(self.parameters(),
