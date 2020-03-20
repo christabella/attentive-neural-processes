@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 import torch
 
+pd.options.mode.use_inf_as_na = True
+
 
 def npsample_batch(x, y, size=None, sort=True):
     """Sample from numpy arrays along 2nd dim."""

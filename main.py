@@ -4,6 +4,7 @@ Runs a model on a single node across N-gpus.
 Usage: python main.py --gpus 1
 """
 import os
+import pathlib
 from argparse import ArgumentParser
 
 import numpy as np
@@ -11,12 +12,16 @@ import torch
 
 import pytorch_lightning as pl
 from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
+from pytorch_lightning.callbacks import ModelCheckpoint
 from src.models.lightning_anp import LatentModelPL
 from pytorch_lightning.callbacks import EarlyStopping
 
 SEED = 2334
 torch.manual_seed(SEED)
 np.random.seed(SEED)
+# The processing speed (i.e. processed batch items per second) can be lower than when the model is non-deterministic. https://pytorch.org/docs/stable/notes/randomness.html
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 
 def main(hparams):
@@ -33,10 +38,16 @@ def main(hparams):
     # 2 INIT TRAINER
     # ------------------------
     logger = TensorBoardLogger("tensorboard_logs")
+    checkpoint_callback = ModelCheckpoint(
+        filepath=os.getcwd(),
+        save_top_k=1,
+        verbose=True,
+    )
     early_stop_callback = EarlyStopping(
         monitor='val_loss',
         min_delta=0.00,
-        patience=3,  # Epochs of no improvement.
+        # patience=3,  # Epochs of no improvement.
+        patience=0,  # Epochs of no improvement.
         verbose=True,
         mode='min')
 
@@ -48,12 +59,20 @@ def main(hparams):
         logger=logger,
         gradient_clip_val=hparams.grad_clip,
         early_stop_callback=early_stop_callback,
+        checkpoint_callback=checkpoint_callback,
         print_nan_grads=True)
 
     # ------------------------
     # 3 START TRAINING
     # ------------------------
     trainer.fit(model)
+    # ------------------------
+    # 3 START TESTING
+    # ------------------------
+    # Just one best model here, saved by ModelCheckpoint.
+    paths = pathlib.Path('.').glob('*.ckpt')
+    best_model = LatentModelPL.load_from_checkpoint(next(paths))
+    trainer.test(best_model)
 
 
 if __name__ == '__main__':

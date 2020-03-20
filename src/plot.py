@@ -97,12 +97,12 @@ def plot_from_loader(loader,
                      i=0,
                      undo_log=False,
                      title="",
-                     plot=True,
                      legend=False,
                      context_in_target=None):
     """Plot
     i: Index to visualize
     """
+    i = min(int(i), len(loader.dataset))
     if context_in_target is None:
         context_in_target = model.hparams["context_in_target"]
 
@@ -131,17 +131,16 @@ def plot_from_loader(loader,
         y_pred, kl, loss_test, loss_mse, y_std = model(context_x, context_y,
                                                        target_x, target_y)
 
-        if plot:
-            plt.figure()
-            plt.title(title + f" loss={loss_test: 2.2g} {dt}")
-            plot_rows(
-                y_target_rows,
-                y_context_rows,
-                y_pred.detach().cpu().numpy(),
-                y_std.detach().cpu().numpy(),
-                undo_log=False,
-                legend=legend,
-            )
+        plt.figure()
+        plt.title(title + f" loss={loss_test: 2.2g} {dt}")
+        plot_rows(
+            y_target_rows,
+            y_context_rows,
+            y_pred.detach().cpu().numpy(),
+            y_std.detach().cpu().numpy(),
+            undo_log=False,
+            legend=legend,
+        )
     return loss_test
 
 

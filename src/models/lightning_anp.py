@@ -66,19 +66,12 @@ class LatentModelPL(pl.LightningModule):
         """
         # loader is torch.utils.data.DataLoader
         loader = self.val_dataloader()
-
-        # print('vis_i', vis_i)
-        if isinstance(self.hparams["vis_i"], str):
-            image = plot_from_loader(loader, self, i=self.hparams["vis_i"])
-            plt.show()
-        else:
-            # plt.savefig('histogram.pgf')
-            image = plot_from_loader_to_tensor(loader,
-                                               self,
-                                               i=self.hparams["vis_i"])
-            # https://github.com/PytorchLightning/pytorch-lightning/blob/f8d9f8f/pytorch_lightning/core/lightning.py#L293
-            self.logger.experiment.add_image('val_image', image,
-                                             self.trainer.global_step)
+        image = plot_from_loader_to_tensor(loader,
+                                           self,
+                                           i=self.hparams["vis_i"])
+        # https://github.com/PytorchLightning/pytorch-lightning/blob/f8d9f8f/pytorch_lightning/core/lightning.py#L293
+        self.logger.experiment.add_image('val_image', image,
+                                         self.trainer.global_step)
 
         keys = outputs[0]["log"].keys()
         tensorboard_logs = {
