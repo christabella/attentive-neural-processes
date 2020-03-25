@@ -24,6 +24,8 @@ class LatentModelPL(pl.LightningModule):
         return self.model(context_x, context_y, target_x, target_y)
 
     def batch_step(self, batch, stage='train'):
+        """Batch is taken from the relevant dataloader, depending on stage.
+        """
         assert all(torch.isfinite(d).all() for d in batch)
         context_x, context_y, target_x, target_y = batch
         y_pred, kl, loss, loss_mse, y_std = self.forward(
@@ -48,7 +50,7 @@ class LatentModelPL(pl.LightningModule):
         loss, tensorboard_logs = self.batch_step(batch, stage='train')
         PLOT_INTERVAL = 100
         if batch_idx % PLOT_INTERVAL == 0:
-            loader = self.val_dataloader()
+            loader = self.train_dataloader()
             image = plot_from_loader_to_tensor(loader,
                                                self,
                                                i=self.hparams["vis_i"])
@@ -110,9 +112,15 @@ class LatentModelPL(pl.LightningModule):
 
         return {
             "test_loss": avg_loss,
-            "progress_bar": tensorboard_logs  # Print test_* scalars in stdout.
-            # Dont log these test_* scalars as they're just a single point.
-            # "log": tensorboard_logs,
+            "progress_bar":
+            tensorboard_logs,  # Print test_* scalars in stdout.
+            # Unfortunately this means these test_* scalars will be logged in
+            # TB even though they're just a single point, but we need this so
+            # guild compare can access them (or at least just loss and MSE).
+            "log": {
+                'test_loss': tensorboard_logs['test_loss'],
+                'test_mse_functional': tensorboard_logs['test_mse_functional']
+            },
         }
 
     def configure_optimizers(self):
@@ -187,7 +195,6 @@ class LatentModelPL(pl.LightningModule):
                             type=str,
                             default='uniform',
                             help='Attention type')
-
         parser.add_argument('--det_enc_self_attn_type',
                             type=str,
                             default='uniform',

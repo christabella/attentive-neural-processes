@@ -60,6 +60,10 @@ def main(hparams):
         gradient_clip_val=hparams.grad_clip,
         early_stop_callback=early_stop_callback,
         checkpoint_callback=checkpoint_callback,
+        val_check_interval=0.2,  # Validate every 0.2 of an epoch
+        train_percent_check=1.0,
+        val_percent_check=1.0,
+        test_percent_check=1.0,
         log_save_interval=100,
         print_nan_grads=True)
 
