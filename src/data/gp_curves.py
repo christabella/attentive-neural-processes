@@ -1,3 +1,7 @@
+"""Taken from the official DeepMind ANP implementation.
+https://github.com/deepmind/neural-processes/blob/master/attentive_neural_process.ipynb
+"""
+
 import pandas as pd
 import numpy as np
 import collections

@@ -63,6 +63,8 @@ class LatentModelPL(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         """Outputs are a list defined by validation_step().
+        Early stopping will be enabled if ‘val_loss’ is found in return dict.
+        https://pytorch-lightning.readthedocs.io/en/latest/early_stopping.html
         """
         # loader is torch.utils.data.DataLoader
         loader = self.val_dataloader()

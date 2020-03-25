@@ -86,6 +86,7 @@ class AttnLinear(nn.Module):
 
 
 class Attention(nn.Module):
+    """From KurochkinAlexey/Recurrent-neural-processes."""
     def __init__(
             self,
             hidden_dim,
