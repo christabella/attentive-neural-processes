@@ -17,6 +17,7 @@ events.out.*
 !.vscode/extensions.json
 
 ### JupyterNotebook ###
+*.ipynb
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 

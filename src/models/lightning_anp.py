@@ -183,7 +183,6 @@ class LatentModelPL(pl.LightningModule):
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser])
         parser.add_argument('--epochs', type=int, default=10)
-        parser.add_argument('--learning-rate', type=float, default=1e-4)
         parser.add_argument('--latent_enc_self_attn_type',
                             type=str,
                             default='uniform',
@@ -196,7 +195,8 @@ class LatentModelPL(pl.LightningModule):
         parser.add_argument('--det_enc_cross_attn_type',
                             type=str,
                             default='multihead',
-                            help='Attention type for determinstic encoder')
+                            choices=['uniform', 'ptmultihead', 'multihead'],
+                            help='Makes an NP an ANP.')
         parser.add_argument('--learning_rate',
                             type=float,
                             default=1e-2,
@@ -231,8 +231,11 @@ class LatentModelPL(pl.LightningModule):
                             action='store_true',
                             help='')
 
-        parser.add_argument('--min_std', type=int, default=0.005, help='')
-        parser.add_argument('--grad_clip', type=int, default=40, help='')
+        parser.add_argument('--min_std', type=float, default=0.005, help='')
+        parser.add_argument('--grad_clip',
+                            type=int,
+                            default=0,
+                            help='0 means no clipping.')
         parser.add_argument('--num_context', type=int, default=24 * 4, help='')
         parser.add_argument('--num_extra_target',
                             type=int,

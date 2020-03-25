@@ -60,6 +60,7 @@ def main(hparams):
         gradient_clip_val=hparams.grad_clip,
         early_stop_callback=early_stop_callback,
         checkpoint_callback=checkpoint_callback,
+        log_save_interval=100,
         print_nan_grads=True)
 
     # ------------------------
