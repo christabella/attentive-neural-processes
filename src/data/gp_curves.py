@@ -1,4 +1,4 @@
-"""Taken from the official DeepMind ANP implementation.
+"""Adapted from the official DeepMind ANP implementation in TF to Torch.
 https://github.com/deepmind/neural-processes/blob/master/attentive_neural_process.ipynb
 """
 

@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from argparse import ArgumentParser
 from src.models.model import LatentModel
 from src.data.smart_meter import collate_fns, SmartMeterDataSet, get_smartmeter_df
+from src.data.gp_sine_curves_dataset import generate_GP_data, GPCurvesDataset, collate_fns_GP
 from src.plot import plot_from_loader_to_tensor, plot_from_loader
 from src.utils import ObjectDict
 from matplotlib import pyplot as plt
@@ -131,61 +132,101 @@ class LatentModelPL(pl.LightningModule):
             min_lr=1e-5)  # note early stopping has patient 3
         return [optim], [scheduler]
 
-    def _get_cache_dfs(self):
-        if self._dfs is None:
-            df_train, df_test = get_smartmeter_df()
-            # self._dfs = dict(df_train=df_train[:600], df_test=df_test[:600])
-            self._dfs = dict(df_train=df_train, df_test=df_test)
-        return self._dfs
+    def prepare_data(self):
+        """https://pytorch-lightning.readthedocs.io/en/0.7.1/lightning-module.html"""
+        if self.hparams["dataset"] == "smartmeter":
+            self._df_train, self._df_test = get_smartmeter_df()
+        elif self.hparams["dataset"] == "GP":
+            self._train_X, self._train_F = generate_GP_data(num_functions=1000,
+                                                            num_samples=100)
+            self._test_X, self._test_F = generate_GP_data(num_functions=200,
+                                                          num_samples=100)
 
     @pl.data_loader
     def train_dataloader(self):
-        df_train = self._get_cache_dfs()['df_train']
-        data_train = SmartMeterDataSet(df_train, self.hparams["num_context"],
-                                       self.hparams["num_extra_target"])
-        return torch.utils.data.DataLoader(
-            data_train,
-            batch_size=self.hparams["batch_size"],
-            shuffle=True,
-            collate_fn=collate_fns(
-                self.hparams["num_context"],
-                self.hparams["num_extra_target"],
-                sample=True,
-                context_in_target=self.hparams["context_in_target"]),
-            num_workers=self.hparams["num_workers"],
-        )
+        if self.hparams["dataset"] == "smartmeter":
+            df_train = self._df_train
+            data_train = SmartMeterDataSet(df_train,
+                                           self.hparams["num_context"],
+                                           self.hparams["num_extra_target"])
+            return torch.utils.data.DataLoader(
+                data_train,
+                batch_size=self.hparams["batch_size"],
+                shuffle=True,
+                collate_fn=collate_fns(
+                    self.hparams["num_context"],
+                    self.hparams["num_extra_target"],
+                    sample=True,
+                    context_in_target=self.hparams["context_in_target"]),
+                num_workers=self.hparams["num_workers"],
+            )
+        elif self.hparams["dataset"] == "GP":
+            data_train = GPCurvesDataset(self._train_X, self._train_F)
+            return torch.utils.data.DataLoader(
+                data_train,
+                batch_size=self.hparams["batch_size"],
+                shuffle=True,
+                collate_fn=collate_fns_GP(
+                    self.hparams["num_context"],
+                    context_in_target=self.hparams["context_in_target"]),
+                num_workers=self.hparams["num_workers"],
+            )
 
     @pl.data_loader
     def val_dataloader(self):
-        df_test = self._get_cache_dfs()['df_test']
-        data_test = SmartMeterDataSet(df_test, self.hparams["num_context"],
-                                      self.hparams["num_extra_target"])
-        return torch.utils.data.DataLoader(
-            data_test,
-            batch_size=self.hparams["batch_size"],
-            shuffle=False,
-            collate_fn=collate_fns(
-                self.hparams["num_context"],
-                self.hparams["num_extra_target"],
-                sample=False,
-                context_in_target=self.hparams["context_in_target"]),
-        )
+        if self.hparams["dataset"] == "smartmeter":
+            df_test = self._df_test
+            data_test = SmartMeterDataSet(df_test, self.hparams["num_context"],
+                                          self.hparams["num_extra_target"])
+            return torch.utils.data.DataLoader(
+                data_test,
+                batch_size=self.hparams["batch_size"],
+                shuffle=False,
+                collate_fn=collate_fns(
+                    self.hparams["num_context"],
+                    self.hparams["num_extra_target"],
+                    sample=False,
+                    context_in_target=self.hparams["context_in_target"]),
+            )
+        elif self.hparams["dataset"] == "GP":
+            data_train = GPCurvesDataset(self._test_X, self._test_F)
+            return torch.utils.data.DataLoader(
+                data_train,
+                batch_size=self.hparams["batch_size"],
+                shuffle=True,
+                collate_fn=collate_fns_GP(
+                    self.hparams["num_context"],
+                    context_in_target=self.hparams["context_in_target"]),
+                num_workers=self.hparams["num_workers"],
+            )
 
     @pl.data_loader
     def test_dataloader(self):
-        df_test = self._get_cache_dfs()['df_test']
-        data_test = SmartMeterDataSet(df_test, self.hparams["num_context"],
-                                      self.hparams["num_extra_target"])
-        return torch.utils.data.DataLoader(
-            data_test,
-            batch_size=self.hparams["batch_size"],
-            shuffle=False,
-            collate_fn=collate_fns(
-                self.hparams["num_context"],
-                self.hparams["num_extra_target"],
-                sample=False,
-                context_in_target=self.hparams["context_in_target"]),
-        )
+        if self.hparams["dataset"] == "smartmeter":
+            df_test = self._df_test
+            data_test = SmartMeterDataSet(df_test, self.hparams["num_context"],
+                                          self.hparams["num_extra_target"])
+            return torch.utils.data.DataLoader(
+                data_test,
+                batch_size=self.hparams["batch_size"],
+                shuffle=False,
+                collate_fn=collate_fns(
+                    self.hparams["num_context"],
+                    self.hparams["num_extra_target"],
+                    sample=False,
+                    context_in_target=self.hparams["context_in_target"]),
+            )
+        elif self.hparams["dataset"] == "GP":
+            data_train = GPCurvesDataset(self._test_X, self._test_F)
+            return torch.utils.data.DataLoader(
+                data_train,
+                batch_size=self.hparams["batch_size"],
+                shuffle=True,
+                collate_fn=collate_fns_GP(
+                    self.hparams["num_context"],
+                    context_in_target=self.hparams["context_in_target"]),
+                num_workers=self.hparams["num_workers"],
+            )
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -204,6 +245,10 @@ class LatentModelPL(pl.LightningModule):
                             default='multihead',
                             choices=['uniform', 'ptmultihead', 'multihead'],
                             help='Makes an NP an ANP.')
+        parser.add_argument('--dataset',
+                            type=str,
+                            default='GP',
+                            choices=['GP', 'smartmeter'])
         parser.add_argument('--learning_rate',
                             type=float,
                             default=1e-2,
@@ -231,18 +276,19 @@ class LatentModelPL(pl.LightningModule):
                             action='store_false',
                             help='')
         parser.add_argument('--use_self_attn', action='store_false', help='')
-        # False by default
-        parser.add_argument('--use_lvar', action='store_true', help='')
-        parser.add_argument('--use_rnn', action='store_true', help='')
         parser.add_argument('--context_in_target',
                             action='store_true',
                             help='')
+        # False by default
+        parser.add_argument('--use_lvar', action='store_true', help='')
+        parser.add_argument('--use_rnn', action='store_true', help='')
 
         parser.add_argument('--min_std', type=float, default=0.005, help='')
         parser.add_argument('--grad_clip',
                             type=int,
                             default=0,
                             help='0 means no clipping.')
+        # TODO: This should vary among functions/meta-datasets?
         parser.add_argument('--num_context', type=int, default=24 * 4, help='')
         parser.add_argument('--num_extra_target',
                             type=int,
