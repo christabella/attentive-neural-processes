@@ -19,7 +19,7 @@ def generate_GP_data(num_functions=1000, num_samples=100):
     """
     jitter = 1e-6
     Xs = np.linspace(-5.0, 5.0, num_samples)[:, None]
-    kernel = RBF(lengthscale=1.)
+    kernel = RBF(lengthscales=1.)
     cov = kernel(Xs)
     L = np.linalg.cholesky(cov + np.eye(num_samples) * jitter)
     epsilon = np.random.randn(num_samples, num_functions)
@@ -56,15 +56,18 @@ def collate_fns_GP(max_num_context, context_in_target=True):
 
 class GPCurvesDataset(Dataset):
     def __init__(self, X, F):
+        """Accepts tuple of np.arrays of size (num_samples, 1) and
+        (num_samples, num_functions).
+        """
         self.X, self.F = X, F
 
     def __getitem__(self, i):
         # Shape (num_samples, x_dim)
         X = self.X  # Always the same for now... TODO: Maybe should vary!
         # Shape (num_samples, y_dim)
-        Y = self.F[:, i]
+        Y = self.F[:, i][:, None]
         # TODO should the context-target splits be the same, or different, for a new iteration?
         return torch.from_numpy(X), torch.from_numpy(Y)
 
     def __len__(self):
-        return self.num_functions
+        return self.F.shape[1]

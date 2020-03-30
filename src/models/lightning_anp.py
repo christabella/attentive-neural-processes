@@ -189,9 +189,9 @@ class LatentModelPL(pl.LightningModule):
                     context_in_target=self.hparams["context_in_target"]),
             )
         elif self.hparams["dataset"] == "GP":
-            data_train = GPCurvesDataset(self._test_X, self._test_F)
+            data_test = GPCurvesDataset(self._test_X, self._test_F)
             return torch.utils.data.DataLoader(
-                data_train,
+                data_test,
                 batch_size=self.hparams["batch_size"],
                 shuffle=True,
                 collate_fn=collate_fns_GP(
@@ -217,9 +217,9 @@ class LatentModelPL(pl.LightningModule):
                     context_in_target=self.hparams["context_in_target"]),
             )
         elif self.hparams["dataset"] == "GP":
-            data_train = GPCurvesDataset(self._test_X, self._test_F)
+            data_test = GPCurvesDataset(self._test_X, self._test_F)
             return torch.utils.data.DataLoader(
-                data_train,
+                data_test,
                 batch_size=self.hparams["batch_size"],
                 shuffle=True,
                 collate_fn=collate_fns_GP(
@@ -298,7 +298,10 @@ class LatentModelPL(pl.LightningModule):
         parser.add_argument('--num_workers', type=int, default=3, help='')
         parser.add_argument('--batch_size', type=int, default=16, help='')
         parser.add_argument('--num_heads', type=int, default=8, help='')
-        parser.add_argument('--x_dim', type=int, default=17, help='')
+        parser.add_argument('--x_dim',
+                            type=int,
+                            default=1,
+                            help='Should be 17 if dataset is smartmeter.')
         parser.add_argument('--y_dim', type=int, default=1, help='')
         parser.add_argument('--vis_i', type=int, default=670, help='')
 

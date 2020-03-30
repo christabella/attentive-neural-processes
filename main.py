@@ -50,7 +50,10 @@ def main(hparams):
         patience=0,  # Epochs of no improvement.
         verbose=True,
         mode='min')
-
+    if hparams.dataset == "GP":
+        val_check_interval = 1.0  # Needs to be float, otherwise we're saying "check every 1 batch"
+    elif hparams.dataset == "smartmeter":
+        val_check_interval = 0.2  # Validate every 0.2 of an epoch
     trainer = pl.Trainer(
         max_epochs=hparams.epochs,
         gpus=hparams.gpus,
@@ -60,7 +63,7 @@ def main(hparams):
         gradient_clip_val=hparams.grad_clip,
         early_stop_callback=early_stop_callback,
         checkpoint_callback=checkpoint_callback,
-        val_check_interval=0.2,  # Validate every 0.2 of an epoch
+        val_check_interval=val_check_interval,
         train_percent_check=1.0,
         val_percent_check=1.0,
         test_percent_check=1.0,
