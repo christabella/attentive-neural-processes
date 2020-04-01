@@ -7,11 +7,34 @@
       flags-import: all
       requires:
         - file: data
+      compare:
+        - test_loss
+        - test_mse_functional as test_mse
+        - train_loss step as step
+        - train_loss
+        - train_mse_functional as train_mse
+        # val_loss is the last recorded loss, whereas test is best
+        # - val_loss
+        - .time
+        - .started
+        - =det_enc_cross_attn_type
+        - =learning_rate
+        - =use_lvar
+        - =grad_clip
+        - =batch_size
+        - =dataset
+
   sourcecode:
     - exclude: '*.ipynb'
     - exclude: '.*'
+    - exclude: '*.csv'
+    - exclude: '*.pyc'
     - exclude:
         dir: ./data
+    - exclude:
+        dir: __pycache__
+    - exclude:
+        dir: runs
     - exclude:
         dir: docs
 
