@@ -47,32 +47,23 @@ def plot_data(
       """
     # Plot everything
     j = 0
-    label = "energy(kWh/hh)"
 
     # Start with true data and use it to get ylimits (that way they are constant)
-    plt.plot(target_x, target_y, "k:", linewidth=2, label="true")
-    plt.plot(context_x, context_y, "k:", linewidth=2, label="true")
+    # plt.plot(context_x, context_y, "k:", linewidth=2, label="true")
+    # Since C is a subset of T, it's enough to just plot T.
+    plt.plot(target_x, target_y, "ko", linewidth=2, label="true", markersize=1)
     ylims = plt.ylim()
 
     # plot predictions
-    plt.plot(target_x, pred_y[0], "b", linewidth=2, label="predicted")
+    plt.plot(target_x, pred_y[0], "b", linewidth=2, label="Predicted mean")
     plt.fill_between(
         target_x,
-        pred_y[0, :, 0] - std[0, :, 0],
-        pred_y[0, :, 0] + std[0, :, 0],
+        pred_y[0, :, 0] - (std[0, :, 0]**2),
+        pred_y[0, :, 0] + (std[0, :, 0]**2),
         alpha=0.25,
         facecolor="blue",
         interpolate=True,
-        label="uncertainty",
-    )
-    plt.fill_between(
-        target_x,
-        pred_y[0, :, 0] - std[0, :, 0] * 2,
-        pred_y[0, :, 0] + std[0, :, 0] * 2,
-        alpha=0.125,
-        facecolor="blue",
-        interpolate=True,
-        label="uncertainty",
+        label="Predicted variance",
     )
 
     # Finally context, we do this with   pandas so it will override x ax and make it nice
@@ -80,15 +71,14 @@ def plot_data(
         context_x,
         context_y,
         "ko",  # black circles
-        linewidth=2,
         label="input data",
     )
 
     # Make the plot pretty
     plt.grid("off")
     plt.ylim(*ylims)
-    plt.xlabel("Date")
-    plt.ylabel("Energy (kWh/hh)")
+    plt.xlabel("x")
+    plt.ylabel("y")
     plt.grid(b=None)
     if legend:
         plt.legend()
