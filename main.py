@@ -46,12 +46,13 @@ def main(hparams):
     early_stop_callback = EarlyStopping(
         monitor='val_loss',
         min_delta=0.00,
-        # patience=3,  # Epochs of no improvement.
-        patience=0,  # Epochs of no improvement.
+        patience=20,  # Epochs of no improvement.
+        # patience=0,  # Epochs of no improvement.
         verbose=True,
         mode='min')
     if hparams.dataset == "GP":
-        val_check_interval = 1.0  # Needs to be float, otherwise we're saying "check every 1 batch"
+        # val_check_interval = 1.0  # Needs to be float, otherwise we're saying "check every 1 batch"
+        val_check_interval = 50  # Check every 100 batches"
     elif hparams.dataset == "smartmeter":
         val_check_interval = 0.2  # Validate every 0.2 of an epoch
     trainer = pl.Trainer(

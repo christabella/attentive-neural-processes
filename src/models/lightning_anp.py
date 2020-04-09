@@ -132,15 +132,34 @@ class LatentModelPL(pl.LightningModule):
             min_lr=1e-5)  # note early stopping has patient 3
         return [optim], [scheduler]
 
+    # learning rate warm-up
+    def optimizer_step(self,
+                       current_epoch,
+                       batch_nb,
+                       optimizer,
+                       optimizer_i,
+                       second_order_closure=None):
+        # warm up lr
+        if self.trainer.global_step < 500:
+            lr_scale = min(1., float(self.trainer.global_step + 1) / 500.)
+            for pg in optimizer.param_groups:
+                pg['lr'] = lr_scale * self.hparams.learning_rate
+
+        # update params
+        optimizer.step()
+        optimizer.zero_grad()
+
     def prepare_data(self):
         """https://pytorch-lightning.readthedocs.io/en/0.7.1/lightning-module.html"""
         if self.hparams["dataset"] == "smartmeter":
             self._df_train, self._df_test = get_smartmeter_df()
         elif self.hparams["dataset"] == "GP":
-            self._train_X, self._train_F = generate_GP_data(num_functions=1000,
-                                                            num_samples=100)
-            self._test_X, self._test_F = generate_GP_data(num_functions=200,
-                                                          num_samples=100)
+            self._train_X, self._train_F = generate_GP_data(
+                num_functions=self.hparams["num_tasks_train"],
+                num_samples=self.hparams["num_samples"])
+            self._test_X, self._test_F = generate_GP_data(
+                num_functions=self.hparams["num_tasks_test"],
+                num_samples=self.hparams["num_samples"])
 
     @pl.data_loader
     def train_dataloader(self):
@@ -254,7 +273,10 @@ class LatentModelPL(pl.LightningModule):
                             default=1e-2,
                             help='')
         parser.add_argument('--hidden_dim', type=int, default=128, help='')
-        parser.add_argument('--latent_dim', type=int, default=128, help='')
+        parser.add_argument('--latent_dim',
+                            type=int,
+                            default=128,
+                            help='In ANP: For ANP we always use d = 128.')
         parser.add_argument('--attention_layers', type=int, default=2, help='')
         parser.add_argument('--n_latent_encoder_layers',
                             type=int,
@@ -288,6 +310,15 @@ class LatentModelPL(pl.LightningModule):
                             type=int,
                             default=0,
                             help='0 means no clipping.')
+        # Dataset sizes for synthetic GP dataset.
+        parser.add_argument('--num_tasks_train',
+                            type=int,
+                            default=100,
+                            choices=[100, 1000, 10000])
+        parser.add_argument('--num_tasks_test',
+                            type=int,
+                            default=1000,
+                            choices=[1000, 2000])
         # TODO: This should vary among functions/meta-datasets?
         parser.add_argument('--num_context', type=int, default=24 * 4, help='')
         parser.add_argument('--num_extra_target',

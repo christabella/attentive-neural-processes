@@ -42,6 +42,7 @@ def collate_fns_GP(max_num_context, context_in_target=True):
         y = torch.from_numpy(y).float()
 
         # Sample from numpy arrays along 2nd dim.
+        # Similar to https://github.com/EmilienDupont/neural-processes/blob/master/utils.py#L5
         inds = np.random.choice(range(x.shape[1]),
                                 size=num_context,
                                 replace=False)
