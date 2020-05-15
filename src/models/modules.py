@@ -48,6 +48,7 @@ class BatchMLP(nn.Module):
     """
     def __init__(self,
                  input_size,
+                 hidden_size,
                  output_size,
                  num_layers=2,
                  dropout=0,
@@ -56,17 +57,18 @@ class BatchMLP(nn.Module):
         self.input_size = input_size
         self.output_size = output_size
         self.num_layers = num_layers
-
+        # First layer
         self.initial = NPBlockRelu2d(input_size,
-                                     output_size,
+                                     hidden_size,
                                      dropout=dropout,
                                      batchnorm=batchnorm)
         self.encoder = nn.Sequential(*[
             NPBlockRelu2d(
-                output_size, output_size, dropout=dropout, batchnorm=batchnorm)
-            for _ in range(num_layers - 2)
+                hidden_size, hidden_size, dropout=dropout, batchnorm=batchnorm)
+            for _ in range(num_layers - 1)
         ])
-        self.final = nn.Linear(output_size, output_size)
+        # Final transformation (not really a layer) without ReLU
+        self.final = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
         x = self.initial(x)
@@ -235,12 +237,15 @@ class LatentEncoder(nn.Module):
         self._use_self_attn = use_self_attn
 
     def forward(self, x, y):
+        """Accept x and y, provided as [B, x_dim] and [B, y_dim].
+        Defined in collate_fns_GP
+        """
         encoder_input = torch.cat([x, y], dim=-1)
 
         # Pass final axis through MLP
         encoded = self._input_layer(encoder_input)
         for layer in self._encoder:
-            encoded = torch.relu(layer(encoded))
+            encoded = layer(encoded)
 
         # Aggregator: take the mean over all points
         if self._use_self_attn:
@@ -287,14 +292,15 @@ class DeterministicEncoder(nn.Module):
     ):
         super().__init__()
         self._use_self_attn = use_self_attn
-        self._input_layer = nn.Linear(input_dim, hidden_dim)
+        # First layer
+        self._input_layer = NPBlockRelu2d(input_dim, hidden_dim)
         self._d_encoder = nn.ModuleList([
             NPBlockRelu2d(
                 hidden_dim,
                 hidden_dim,
                 batchnorm=batchnorm,
                 dropout=attention_dropout,
-            ) for _ in range(n_d_encoder_layers)
+            ) for _ in range(n_det_encoder_layers - 1)
         ])
         if use_self_attn:
             self._self_attention = Attention(
@@ -312,19 +318,25 @@ class DeterministicEncoder(nn.Module):
         )
 
     def forward(self, context_x, context_y, target_x):
+        """Returns [B, total_points |C|, rep_summary_dim/hidden_dim] i.e. all r_i's, need to be averaged later to form r_C.
+        """
         # Concatenate x and y along the filter axes
         d_encoder_input = torch.cat([context_x, context_y], dim=-1)
 
         # Pass final axis through MLP
         d_encoded = self._input_layer(d_encoder_input)
         for layer in self._d_encoder:
-            d_encoded = torch.relu(layer(d_encoded))
+            d_encoded = layer(d_encoded)
 
         if self._use_self_attn:
             d_encoded = self._self_attention(d_encoded, d_encoded, d_encoded)
 
-        # Apply attention
+        # Apply attention(k, v, q), on (x_c's, r_i's, and x_T)
+        print("SHAPE OF all r_i's to feed into cross ATTENTION")
+        print(d_encoded.shape)
         h = self._cross_attention(context_x, d_encoded, target_x)
+        print("SHAPE OF OUTPUT FROM CROSS ATTENTION, r_C")
+        print(h.shape)
 
         return h
 
@@ -344,27 +356,30 @@ class Decoder(nn.Module):
             dropout=0,
     ):
         super(Decoder, self).__init__()
-        self._target_transform = nn.Linear(x_dim, hidden_dim)
+        # Basically the first layer.
+        self._target_transform = NPBlockRelu2d(x_dim, hidden_dim)
         if use_deterministic_path:
-            hidden_dim_2 = 2 * hidden_dim + latent_dim
+            input_dim = 2 * hidden_dim + latent_dim
         else:
-            hidden_dim_2 = hidden_dim + latent_dim
-        self._decoder = nn.ModuleList([
-            NPBlockRelu2d(hidden_dim_2,
-                          hidden_dim_2,
-                          batchnorm=batchnorm,
-                          dropout=dropout) for _ in range(n_decoder_layers)
-        ])
-        self._mean = nn.Linear(hidden_dim_2, y_dim)
-        self._std = nn.Linear(hidden_dim_2, y_dim)
+            input_dim = hidden_dim + latent_dim
+        output_dim = 2 * y_dim
+        self._y_dim = y_dim
+        self._decoder = BatchMLP(input_dim,
+                                 hidden_dim,
+                                 output_dim,
+                                 num_layers=n_decoder_layers,
+                                 dropout=dropout,
+                                 batchnorm=batchnorm)
+        # self._mean = nn.Linear(input_dim, y_dim)
+        # self._std = nn.Linear(input_dim, y_dim)
         self._use_deterministic_path = use_deterministic_path
         self._min_std = min_std
         self._use_lvar = use_lvar
 
     def forward(self, r, z, target_x):
-        # concatenate target_x and representation
         x = self._target_transform(target_x)
 
+        # concatenate target_x and representation
         if self._use_deterministic_path:
             z = torch.cat([r, z], dim=-1)
 
@@ -372,11 +387,11 @@ class Decoder(nn.Module):
 
         # Pass final axis through MLP
         for layer in self._decoder:
-            representation = torch.relu(layer(representation))
+            representation = layer(representation)
 
-        # Get the mean and the variance
-        mean = self._mean(representation)
-        log_sigma = self._std(representation)
+        # Get the mean and the variance, each of shape [B, |T|, y_dim]
+        mean, log_sigma = torch.split(representation, self._y_dim,
+                                      dim=-1)  # it returns a tuple
 
         # Bound or clamp the variance
         if self._use_lvar:

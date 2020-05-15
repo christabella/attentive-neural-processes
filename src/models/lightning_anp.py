@@ -350,11 +350,17 @@ class LatentModelPL(pl.LightningModule):
         parser.add_argument('--num_workers', type=int, default=3, help='')
         parser.add_argument('--batch_size', type=int, default=16, help='')
         parser.add_argument('--num_heads', type=int, default=8, help='')
-        parser.add_argument('--x_dim',
+        parser.add_argument(
+            '--x_dim',
+            type=int,
+            default=1,
+            help=
+            'Should be 17 if dataset is smartmeter. Should be 2 if image coordinates input.'
+        )
+        parser.add_argument('--y_dim',
                             type=int,
                             default=1,
-                            help='Should be 17 if dataset is smartmeter.')
-        parser.add_argument('--y_dim', type=int, default=1, help='')
+                            help='Should be 3 for RGB output.')
         parser.add_argument('--vis_i', type=int, default=670, help='')
 
         return parser

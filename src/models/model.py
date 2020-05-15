@@ -130,13 +130,16 @@ class LatentModel(nn.Module):
 
         dist_prior, log_var_prior = self._latent_encoder(context_x, context_y)
 
-        if target_y is not None:
+        if target_y is not None:  # If training,
+            # Get the posterior via the encoder, q(z|s_T)
             dist_post, log_var_post = self._latent_encoder(target_x, target_y)
             z = dist_post.loc
-        else:
+        else:  # If testing, target_y is unavailable so it's None
+            # Just use prior q(z|s_C), same encoder parameters used to compute samples from it as posterior.
             z = dist_prior.loc
 
-        z = z.unsqueeze(1).repeat(1, num_targets, 1)  # [B, T_target, H]
+        z = z.unsqueeze(1).repeat(1, num_targets,
+                                  1)  # [B, T_target (|T|), H (hidden dim)]
 
         if self._use_deterministic_path:
             r = self._deterministic_encoder(context_x, context_y,
@@ -145,7 +148,7 @@ class LatentModel(nn.Module):
             r = None
 
         dist, log_sigma = self._decoder(r, z, target_x)
-        if target_y is not None:
+        if target_y is not None:  # If training
 
             if self._use_lvar:
                 log_p = log_prob_sigma(target_y, dist.loc, log_sigma).mean(
@@ -161,7 +164,7 @@ class LatentModel(nn.Module):
             mse_loss = F.mse_loss(dist.loc, target_y)
             loss = (kl_loss - log_p).mean()
 
-        else:
+        else:  # At test time (target_y is not available).
             log_p = None
             mse_loss = None
             kl_loss = None
