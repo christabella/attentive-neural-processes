@@ -107,12 +107,14 @@ class Attention(nn.Module):
             self.batch_mlp_k = BatchMLP(
                 x_dim,
                 hidden_dim,
+                hidden_dim,
                 attention_layers,
                 dropout=dropout,
                 batchnorm=batchnorm,
             )
             self.batch_mlp_q = BatchMLP(
                 x_dim,
+                hidden_dim,
                 hidden_dim,
                 attention_layers,
                 dropout=dropout,
@@ -386,8 +388,7 @@ class Decoder(nn.Module):
         representation = torch.cat([z, x], dim=-1)
 
         # Pass final axis through MLP
-        for layer in self._decoder:
-            representation = layer(representation)
+        representation = self._decoder(representation)
 
         # Get the mean and the variance, each of shape [B, |T|, y_dim]
         mean, log_sigma = torch.split(representation, self._y_dim,
