@@ -272,27 +272,39 @@ class LatentModelPL(pl.LightningModule):
                             type=float,
                             default=1e-2,
                             help='')
-        parser.add_argument('--hidden_dim', type=int, default=128, help='')
-        parser.add_argument('--latent_dim',
-                            type=int,
-                            default=128,
-                            help='In ANP: For ANP we always use d = 128.')
+        parser.add_argument(
+            '--hidden_dim',
+            type=int,
+            default=128,
+            help=
+            'Both the hidden layer sizes of all encoder/decoders, and the det encoder representation dimensionality r. (From ANP: d denotes the bottleneck size i.e. hidden layer size of all MLPs and the dimensionality of r and z. ANP uses d = 128, while Le18 uses 64.)'
+        )
+        parser.add_argument(
+            '--latent_dim',
+            type=int,
+            default=128,
+            help='Latent encoder representation dimensionality z.')
         parser.add_argument('--attention_layers', type=int, default=2, help='')
         parser.add_argument('--n_latent_encoder_layers',
                             type=int,
                             default=2,
-                            help='')
+                            help='3 in le18')
         parser.add_argument('--n_det_encoder_layers',
                             type=int,
-                            default=2,
-                            help='')
+                            default=3,
+                            help='6 in le18')
         parser.add_argument('--n_decoder_layers', type=int, default=2, help='')
-        parser.add_argument('--dropout', type=int, default=0, help='')
+        parser.add_argument(
+            '--dropout',
+            type=int,
+            default=0,
+            help=
+            'ANP: we do not use dropout, to limit the stochasticity of the model to the latent z.'
+        )
         parser.add_argument('--attention_dropout',
                             type=int,
                             default=0,
                             help='')
-        parser.add_argument('--batchnorm', action='store_true', help='')
         # True by default
         parser.add_argument('--use_deterministic_path',
                             action='store_false',
@@ -302,10 +314,19 @@ class LatentModelPL(pl.LightningModule):
                             action='store_true',
                             help='')
         # False by default
-        parser.add_argument('--use_lvar', action='store_true', help='')
+        parser.add_argument('--batchnorm', action='store_true', help='')
+        parser.add_argument('--use_lvar',
+                            action='store_true',
+                            help='If true, min_std is not used.')
         parser.add_argument('--use_rnn', action='store_true', help='')
-
-        parser.add_argument('--min_std', type=float, default=0.005, help='')
+        parser.add_argument(
+            '--min_std',
+            type=float,
+            default=0.1,
+            help='0.1 by default in ANP (previously we tried 0.005).')
+        # In https://github.com/deepmind/neural-processes/blob/master/attentive_neural_process.ipynb:
+        #     sigma = 0.1 + 0.9 * tf.sigmoid(log_sigma)
+        # And https://github.com/EmilienDupont/neural-processes/blob/6cce149239/models.py
         parser.add_argument('--grad_clip',
                             type=int,
                             default=0,

@@ -201,7 +201,7 @@ class LatentEncoder(nn.Module):
             hidden_dim=32,
             latent_dim=32,
             self_attention_type="dot",
-            n_encoder_layers=3,
+            n_latent_encoder_layers=3,
             min_std=0.01,
             batchnorm=False,
             dropout=0,
@@ -216,7 +216,8 @@ class LatentEncoder(nn.Module):
             NPBlockRelu2d(hidden_dim,
                           hidden_dim,
                           batchnorm=batchnorm,
-                          dropout=dropout) for _ in range(n_encoder_layers)
+                          dropout=dropout)
+            for _ in range(n_latent_encoder_layers)
         ])
         if use_self_attn:
             self._self_attention = Attention(
@@ -275,7 +276,7 @@ class DeterministicEncoder(nn.Module):
             input_dim,
             x_dim,
             hidden_dim=32,
-            n_d_encoder_layers=3,
+            n_det_encoder_layers=3,
             self_attention_type="dot",
             cross_attention_type="dot",
             use_self_attn=False,
