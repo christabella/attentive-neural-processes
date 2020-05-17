@@ -1,7 +1,7 @@
 - model: neural_process
   operations:
     train:
-      description: Train the model
+      description: Train the model, and test the best saved model.
       main: main
       output-scalars: no
       flags-import: all
@@ -17,6 +17,7 @@
         # - val_loss
         - .time
         - .started
+        - =epochs
         - =det_enc_cross_attn_type
         - =learning_rate
         - =use_lvar
@@ -37,4 +38,10 @@
         dir: runs
     - exclude:
         dir: docs
+
+- model: meta_GPR
+  operations:
+    train:
+      description: Meta-train and test.
+      main: deep_mean_gp
 

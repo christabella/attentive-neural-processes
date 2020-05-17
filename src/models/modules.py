@@ -334,11 +334,13 @@ class DeterministicEncoder(nn.Module):
             d_encoded = self._self_attention(d_encoded, d_encoded, d_encoded)
 
         # Apply attention(k, v, q), on (x_c's, r_i's, and x_T)
-        print("SHAPE OF all r_i's to feed into cross ATTENTION")
-        print(d_encoded.shape)
+        # print("SHAPE OF all r_i's to feed into cross ATTENTION")
+        # print(d_encoded.shape)
+        # torch.Size([16, 68/90, 128])
         h = self._cross_attention(context_x, d_encoded, target_x)
-        print("SHAPE OF OUTPUT FROM CROSS ATTENTION, r_C")
-        print(h.shape)
+        # print("SHAPE OF OUTPUT FROM CROSS ATTENTION, r_C")
+        # print(h.shape)
+        # torch.Size([16, 100, 128])
 
         return h
 

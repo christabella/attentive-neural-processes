@@ -340,6 +340,7 @@ class LatentModelPL(pl.LightningModule):
                             type=int,
                             default=1000,
                             choices=[1000, 2000])
+        parser.add_argument('--num_samples', type=int, default=100)
         # TODO: This should vary among functions/meta-datasets?
         parser.add_argument('--num_context', type=int, default=24 * 4, help='')
         parser.add_argument('--num_extra_target',
