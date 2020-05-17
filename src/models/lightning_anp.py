@@ -334,15 +334,15 @@ class LatentModelPL(pl.LightningModule):
         # Dataset sizes for synthetic GP dataset.
         parser.add_argument('--num_tasks_train',
                             type=int,
-                            default=100,
+                            default=500,
                             choices=[100, 1000, 10000])
         parser.add_argument('--num_tasks_test',
                             type=int,
-                            default=1000,
+                            default=500,
                             choices=[1000, 2000])
-        parser.add_argument('--num_samples', type=int, default=100)
+        parser.add_argument('--num_samples', type=int, default=50)
         # TODO: This should vary among functions/meta-datasets?
-        parser.add_argument('--num_context', type=int, default=24 * 4, help='')
+        parser.add_argument('--num_context', type=int, default=5, help='')
         parser.add_argument('--num_extra_target',
                             type=int,
                             default=24 * 4,

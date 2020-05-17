@@ -27,7 +27,7 @@ def generate_GP_data(num_functions=1000, num_samples=100):
     return Xs, F
 
 
-def collate_fns_GP(max_num_context, context_in_target=True):
+def collate_fns_GP(num_context, context_in_target=True):
     """When automatic batching is enabled (which it is since we passed batch_size), collate_fn is called with a list of data samples at each time. It is expected to collate the input samples into a batch for yielding from the data loader iterator.
     """
     def collate_fn(batch):
@@ -36,7 +36,7 @@ def collate_fns_GP(max_num_context, context_in_target=True):
         y = np.stack([y for x, y in batch], 0)
 
         # Sample a subset of random size
-        num_context = np.random.randint(4, max_num_context)
+        # num_context = np.random.randint(4, max_num_context)
 
         x = torch.from_numpy(x).float()
         y = torch.from_numpy(y).float()
