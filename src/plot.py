@@ -94,7 +94,8 @@ def plot_from_loader(loader,
     """Plot
     i: Index to visualize
     """
-    i = min(int(i), len(loader.dataset) - 1)
+    # i = min(int(i), len(loader.dataset) - 1)
+    i = np.random.randint(len(loader.dataset))
     if context_in_target is None:
         context_in_target = model.hparams["context_in_target"]
 
@@ -141,7 +142,7 @@ def plot_from_loader(loader,
                 context_x, context_y, target_x, target_y)
 
             plt.figure()
-            plt.title(title + f" loss={loss_test: 2.2g}")
+            plt.title(title + f" loss={loss_test: 2.2g} for index {i}")
             plot_data(
                 # Flatten the target_x and target_y's shape from [1, N, 1] to just [N]
                 target_x.cpu().view(-1),
