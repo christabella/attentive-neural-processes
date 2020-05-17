@@ -49,6 +49,7 @@ class LatentModel(nn.Module):
             n_det_encoder_layers=3,
             n_decoder_layers=3,
             use_deterministic_path=True,
+            use_latent_path=True,
             min_std=0.01,
             dropout=0,
             use_self_attn=False,
