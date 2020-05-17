@@ -18,12 +18,13 @@
         - .time
         - .started
         - =epochs
-        - =det_enc_cross_attn_type
         - =learning_rate
+        - =det_enc_cross_attn_type
+        - =use_rnn
+        - =dataset
         - =use_lvar
         - =grad_clip
         - =batch_size
-        - =dataset
 
   sourcecode:
     - exclude: '*.ipynb'

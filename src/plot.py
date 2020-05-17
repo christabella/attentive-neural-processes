@@ -153,6 +153,7 @@ def plot_from_loader(loader,
                 y_std.detach().cpu().numpy(),
                 legend=legend,
             )
+    model.train()
 
     return loss_test
 
