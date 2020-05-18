@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+import io
 
 # -*- coding: utf-8 -*-
 # ---
@@ -41,6 +42,8 @@ from gpflow.config import default_float
 
 from tensorflow.python.keras import backend as K
 from tensorflow_addons.optimizers import AdamW
+
+from src.utils import plot_to_image
 
 K.set_floatx("float64")
 assert default_float() == np.float64
@@ -205,15 +208,14 @@ def train_loop(meta_tasks, num_epochs, num_iters, lr):
             data = task  # (X, Y)
             model = build_model(data, mean_function=mean_function)
             run_adam(model, num_iters, lr)
-            tf.summary.scalar('loss', train_loss.result())
+            tf.summary.scalar(
+                'train_loss',
+                train_loss.result(),
+                # Each step corresponds to a run_adam over one task
+                step=num_epochs * len(meta_tasks) + i)
             train_loss.reset_states()
 
         print(">>>> Epoch took {:.2f} s".format(time.time() - ts))
-
-        # image = plot_from_loader_to_tensor(loader,
-        #                                    self,
-        #                                    i=self.hparams["vis_i"])
-        # tf.summary.add_image('test_image', image, self.trainer.global_step)
 
     return mean_function
 
@@ -250,7 +252,7 @@ def main(hparams):
     # we use the mean squared error as a performance metric.
     mean_squared_errors = []
     for i, test_task in enumerate(test):
-        plt.figure(figsize=(8, 4))
+        figure = plt.figure(figsize=(8, 4))
         (train_X, train_Y), (Xs, F) = test_task  # train_X and Xs are disjoint
         pred_mean, pred_var = test_models[i].predict_f(Xs)
         plt.plot(Xs,
@@ -272,14 +274,18 @@ def main(hparams):
         mean_squared_errors.append(mse)
         plt.title(f"Test Task {i + 1} | MSE = {mse:.2f}")
         plt.legend()
+        # Send fig to tensorboard
+        tf.summary.image("test_image", plot_to_image(figure), step=i)
+
         plt.show()
 
     # %%
     mean_mse = np.mean(mean_squared_errors)
-    std_mse = np.std(mean_squared_errors) / np.sqrt(hparams.num_test_tasks)
+    std_mse = np.std(mean_squared_errors) / np.sqrt(hparams.num_tasks_test)
     print(
         f"The mean MSE over all {hparams.num_test_tasks} test tasks is {mean_mse:.2f} +/- {std_mse:.2f}"
     )
+    tf.summary.scalar("test_mse_functional", mean_mse)
 
 
 if __name__ == '__main__':
