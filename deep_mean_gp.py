@@ -45,6 +45,14 @@ from tensorflow_addons.optimizers import AdamW
 K.set_floatx("float64")
 assert default_float() == np.float64
 
+summary_writer = tf.summary.create_file_writer("tensorboard_logs")
+summary_writer.set_as_default()
+# Define metrics
+train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
+
+# Probably too expensive to predict_F at train time too...
+# train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy('train_accuracy')
+
 # %matplotlib inline
 
 # %% [markdown]
@@ -149,7 +157,7 @@ def create_optimization_step(optimizer, model: gpflow.models.GPR):
     def optimization_step():
         with tf.GradientTape(watch_accessed_variables=False) as tape:
             tape.watch(model.trainable_variables)
-            objective = -model.log_marginal_likelihood()
+            objective = -model.log_marginal_likelihood()  # LML
             grads = tape.gradient(objective, model.trainable_variables)
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
         return objective
@@ -169,10 +177,9 @@ def run_adam(model, iterations, lr):
     adam = AdamW(learning_rate=lr, weight_decay=0.01)
     optimization_step = create_optimization_step(adam, model)
     for step in range(iterations):
-        loss = optimization_step()
-        if step % 10 == 0:
-            # print("num variables", len(model.trainable_variables))
-            logf.append(loss.numpy())
+        loss = optimization_step()  # This is the LML
+        train_loss(loss)
+
     return logf
 
 
@@ -198,8 +205,16 @@ def train_loop(meta_tasks, num_epochs, num_iters, lr):
             data = task  # (X, Y)
             model = build_model(data, mean_function=mean_function)
             run_adam(model, num_iters, lr)
+            tf.summary.scalar('loss', train_loss.result())
+            train_loss.reset_states()
 
         print(">>>> Epoch took {:.2f} s".format(time.time() - ts))
+
+        # image = plot_from_loader_to_tensor(loader,
+        #                                    self,
+        #                                    i=self.hparams["vis_i"])
+        # tf.summary.add_image('test_image', image, self.trainer.global_step)
+
     return mean_function
 
 
