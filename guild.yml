@@ -45,6 +45,8 @@
     train:
       description: Meta-train and test.
       main: deep_mean_gp
+      flags-import: all
+      output-scalars: no
 
   sourcecode:
     - exclude: '*.ipynb'

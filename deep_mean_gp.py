@@ -37,17 +37,13 @@ from gpflow.mean_functions import MeanFunction
 from gpflow.models import GPR
 from gpflow.base import Parameter
 from gpflow import set_trainable
-from gpflow.ci_utils import ci_niter
+from gpflow.config import default_float
 
 from tensorflow.python.keras import backend as K
-from gpflow.config import default_float
+from tensorflow_addons.optimizers import AdamW
 
 K.set_floatx("float64")
 assert default_float() == np.float64
-
-# for reproducibility of this notebook:
-np.random.seed(1)
-tf.random.set_seed(2)
 
 # %matplotlib inline
 
@@ -76,12 +72,12 @@ def generate_GP_data(num_functions=10, N=500):
 
 
 # %%
-def generate_meta_and_test_tasks(num_datapoints, num_meta, num_test, N):
+def generate_meta_and_test_tasks(num_context, num_meta, num_test, N):
     """Generates meta-task datasets {D_i} = {x_i, y_i} and target task training
     and test data {\tilde{x}, \tilde{y}} (Fortuin and Rätsch, 2019).
 
     Args:
-        num_datapoints: The number of training points, \tilde{n} in Table S1.
+        num_context: The number of training points, \tilde{n} in Table S1.
         num_meta: The number of meta-tasks ("sampled functions").
         num_test: The number of test tasks ("unseen functions").
         N: Number of sampled data points per function.
@@ -90,8 +86,8 @@ def generate_meta_and_test_tasks(num_datapoints, num_meta, num_test, N):
         A tuple (meta, test) where
         - meta: List of num_meta pairs of arrays (X, Y) of size (n, 1) each.
         - test: List of num_test pairs of pairs of arrays of sizes
-                (((num_datapoints, 1), (num_datapoints, 1)), 
-                 ((N - num_datapoints, 1), (N - num_datapoints, 1))).
+                (((num_context, 1), (num_context, 1)), 
+                 ((N - num_context, 1), (N - num_context, 1))).
     """
     Xs, F = generate_GP_data(num_functions=num_meta + num_test, N=N)
     meta = []
@@ -104,7 +100,7 @@ def generate_meta_and_test_tasks(num_datapoints, num_meta, num_test, N):
         meta.append((Xs, Y))
     test = []
     for i in range(num_test):
-        inds = np.random.choice(range(N), size=num_datapoints, replace=False)
+        inds = np.random.choice(range(N), size=num_context, replace=False)
         inds.sort()
         # Form target training set, \tilde{D}_{train} (see Figure 1).
         x_context, y_context = Xs[inds], F[inds, num_meta + i][:, None]
@@ -161,7 +157,7 @@ def create_optimization_step(optimizer, model: gpflow.models.GPR):
     return optimization_step
 
 
-def run_adam(model, iterations):
+def run_adam(model, iterations, lr):
     """
     Utility function running the Adam optimizer
     
@@ -170,7 +166,7 @@ def run_adam(model, iterations):
     """
     # Create an Adam Optimizer action
     logf = []
-    adam = tf.optimizers.Adam()
+    adam = AdamW(learning_rate=lr, weight_decay=0.01)
     optimization_step = create_optimization_step(adam, model)
     for step in range(iterations):
         loss = optimization_step()
@@ -183,38 +179,28 @@ def run_adam(model, iterations):
 # Next, we define the training loop for metalearning.
 
 
-def train_loop(meta_tasks, num_iter=5):
+def train_loop(meta_tasks, num_epochs, num_iters, lr):
     """
     Metalearning training loop. Trained for 100 epochs in original experiment.
     
     :param meta_tasks: list of metatasks.
-    :param num_iter: number of iterations of tasks set
+    :param num_epochs: number of iterations of tasks set
     :returns: a mean function object
     """
     # Initialize mean function
     mean_function = build_mean_function()
     # Iterate for several passes over the tasks set
-    for iteration in range(num_iter):
+    for iteration in range(num_epochs):
         ts = time.time()
         print("Currently in meta-iteration/epoch {}".format(iteration))
         # Iterate over tasks
         for i, task in enumerate(meta_tasks):
             data = task  # (X, Y)
             model = build_model(data, mean_function=mean_function)
-            run_adam(model, ci_niter(100))
+            run_adam(model, num_iters, lr)
 
-        print(">>>> iteration took {:.2f} s".format(time.time() - ts))
+        print(">>>> Epoch took {:.2f} s".format(time.time() - ts))
     return mean_function
-
-
-# %% [markdown]
-# Finally, we use the optimized mean function for all of the test tasks. **NOTE:** We do not do any further optimization for the hyperparameters in this step.
-
-# %%
-
-# %% [markdown]
-# ## Assess the model
-# We assess the performance of this procedure on the test tasks. For this, we use the mean squared error as a performance metric.
 
 
 # %%
@@ -222,24 +208,31 @@ def mean_squared_error(y, y_pred):
     return np.mean((y - y_pred)**2)
 
 
-# %%
-
-# %% [markdown]
-# We achieve comparable results to those reported in the paper.
-#
 # **NOTE:** We use only 50 metatasks and 10 test tasks over 5 epochs for scalability, whereas the paper uses 1,000 and 200 respectively over 100 epochs. To compensate, we sample 500 points per curve, whereas the paper samples only 50 points. Hence, there might be some discrepancies in the results.
 
 
 def main(hparams):
-    meta, test = generate_meta_and_test_tasks(hparams["num_samples"],
-                                              hparams["num_tasks_train"],
-                                              hparams["num_tasks_test"],
-                                              hparams.num_context)
-    mean_function_optimal = train_loop(meta)
+    # for reproducibility of this notebook:
+    np.random.seed(hparams.seed)
+    tf.random.set_seed(hparams.seed)
+
+    meta, test = generate_meta_and_test_tasks(hparams.num_context,
+                                              hparams.num_tasks_train,
+                                              hparams.num_tasks_test,
+                                              hparams.num_samples)
+
+    mean_function_optimal = train_loop(meta,
+                                       num_epochs=hparams.epochs,
+                                       num_iters=hparams.num_iters,
+                                       lr=hparams.learning_rate)
+    # Finally, we use the optimized mean function for all of the test tasks.
+    # **NOTE:** We do not do any further optimization for the hyperparameters.
     test_models = [
         build_model(data, mean_function_optimal) for (data, _) in test
     ]
-
+    # Assess the model
+    # We assess the performance of this procedure on the test tasks. For this,
+    # we use the mean squared error as a performance metric.
     mean_squared_errors = []
     for i, test_task in enumerate(test):
         plt.figure(figsize=(8, 4))
@@ -280,7 +273,15 @@ if __name__ == '__main__':
     # ------------------------
     # these are project-wide arguments
 
-    parser = ArgumentParser(add_help=False)
+    parser = ArgumentParser()
+    parser.add_argument('--seed', type=int, default=2334)
+    parser.add_argument('--epochs', type=int, default=1000)
+    parser.add_argument(
+        '--num_iters',
+        type=int,
+        default=1,
+        help="Inner loop gradient steps. 1 to be comparable with NPs.")
+
     parser.add_argument('--num_tasks_train', type=int, default=500)
     parser.add_argument('--num_tasks_test', type=int, default=500)
     parser.add_argument('--num_samples', type=int, default=50)
@@ -291,6 +292,11 @@ if __name__ == '__main__':
                         default="mean",
                         help="Which parameters to train over meta-tasks?",
                         choices=["mean", "kernel", "both"])
+    parser.add_argument('--dataset',
+                        type=str,
+                        default='GP',
+                        choices=['GP', 'smartmeter'])
+    parser.add_argument('--learning_rate', type=float, default=1e-3, help='')
 
     # each LightningModule defines arguments relevant to it
     hyperparams = parser.parse_args()
