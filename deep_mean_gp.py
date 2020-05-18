@@ -19,11 +19,18 @@ import io
 
 # %% [markdown]
 # # Custom mean functions: metalearning with GPs
-# One of the advantages of Gaussian process is their flexibility as a modeling tool. For instance, if the modeler knows that there is an underlying trend in the data, they can specify a mean function that captures this trend.
+# One of the advantages of Gaussian process is their flexibility as a modeling
+# tool. For instance, if the modeler knows that there is an underlying trend in
+# the data, they can specify a mean function that captures this trend.
 #
-# In this notebook, we illustrate how to use GPflow to construct a custom neural network mean function for GPs that can capture complex trends. We look at this functionality in the context of metalearning, where a number of metatasks are available at train time and the user wants to adapt a flexible model to new tasks at test time.
+# In this notebook, we illustrate how to use GPflow to construct a custom
+# neural network mean function for GPs that can capture complex trends. We look
+# at this functionality in the context of metalearning, where a number of
+# metatasks are available at train time and the user wants to adapt a flexible
+# model to new tasks at test time.
 #
-# For an in-depth discussion on this topic, see *(Fortuin and Rätsch, 2019)*. This notebook reproduces section 4.2 of this paper.
+# For an in-depth discussion on this topic, see *(Fortuin and Rätsch, 2019)*.
+# This notebook reproduces section 4.2 of this paper.
 
 # %%
 import numpy as np
@@ -48,19 +55,10 @@ from src.utils import plot_to_image
 K.set_floatx("float64")
 assert default_float() == np.float64
 
+# Could have also used this official tutorial for TB monitoring :facepalm:
+# https://gpflow.readthedocs.io/en/master/notebooks/basics/monitoring.html
 summary_writer = tf.summary.create_file_writer("tensorboard_logs")
 summary_writer.set_as_default()
-# Define metrics
-train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
-
-# Probably too expensive to predict_F at train time too...
-# train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy('train_accuracy')
-
-# %matplotlib inline
-
-# %% [markdown]
-# ## Generate the tasks
-# To generate the meta and test tasks, we sample from a Gaussian process with an Squared Exponential covariance function and a sinusoidal mean function. Each task is a realization of this process.
 
 
 # %%
@@ -97,14 +95,14 @@ def generate_meta_and_test_tasks(num_context, num_meta, num_test, N):
         A tuple (meta, test) where
         - meta: List of num_meta pairs of arrays (X, Y) of size (n, 1) each.
         - test: List of num_test pairs of pairs of arrays of sizes
-                (((num_context, 1), (num_context, 1)), 
+                (((num_context, 1), (num_context, 1)),
                  ((N - num_context, 1), (N - num_context, 1))).
     """
     Xs, F = generate_GP_data(num_functions=num_meta + num_test, N=N)
     meta = []
-    # sd = 1e-1  # Standard deviation for normally-distributed observation noise.
+    # sd = 1e-1  # Standard deviation for normal observation noise.
     for i in range(num_meta):
-        # We always use all data points of the curve to train the mean function,
+        # We always use all data points of the curve to train mean function,
         # i.e. n_i = N.
         # noise = sd * np.random.randn(N, 1)
         Y = F[:, i][:, None]
@@ -137,11 +135,22 @@ def build_mean_function():
 
 # %% [markdown]
 # ## Build the GP metamodel
-# Metalearning boils down to learning a good prior that can generalize to new tasks with a small number of data points. This framework is prevalent in GP modeling, where we usually maximize the marginal likelihood to learn a good set of hyperparameters that specify the GP prior.
+# Metalearning boils down to learning a good prior that can generalize
+# to new tasks with a small number of data points. This framework is
+# prevalent in GP modeling, where we usually maximize the marginal
+# likelihood to learn a good set of hyperparameters that specify the
+# GP prior.
 #
-# We perform the same optimization here, while sharing the hyperparameters across all the metatasks. For simplicity, we fix the kernel and likelihood parameters and learn those only for the mean function. Hence, our metalearning procedure is to cycle through the metatasks continuously, optimizing their marginal likelihood until a convergence criteria is reached (here, we just implement a fixed number of iterations over the tasks).
+# We perform the same optimization here, while sharing the
+# hyperparameters across all the metatasks. For simplicity, we fix the
+# kernel and likelihood parameters and learn those only for the mean
+# function. Hence, our metalearning procedure is to cycle through the
+# metatasks continuously, optimizing their marginal likelihood until a
+# convergence criteria is reached (here, we just implement a fixed
+# number of iterations over the tasks).
 #
-# To begin this process, first we create a utility function that takes in a task (X, Y) and a mean function and outputs a GP model.
+# To begin this process, first we create a utility function that takes
+# in a task (X, Y) and a mean function and outputs a GP model.
 
 # %%
 
@@ -170,20 +179,20 @@ def create_optimization_step(optimizer, model: gpflow.models.GPR):
 
 def run_adam(model, iterations, lr):
     """
-    Utility function running the Adam optimizer
-    
+    Utility function running the Adam optimizer.
     :param model: GPflow model
     :param interations: number of iterations
     """
     # Create an Adam Optimizer action
-    logf = []
     adam = AdamW(learning_rate=lr, weight_decay=0.01)
     optimization_step = create_optimization_step(adam, model)
+    LML = 0
     for step in range(iterations):
         loss = optimization_step()  # This is the LML
-        train_loss(loss)
+        LML += loss.numpy()
+    LML /= iterations
 
-    return logf
+    return LML
 
 
 # Next, we define the training loop for metalearning.
@@ -192,7 +201,6 @@ def run_adam(model, iterations, lr):
 def train_loop(meta_tasks, num_epochs, num_iters, lr):
     """
     Metalearning training loop. Trained for 100 epochs in original experiment.
-    
     :param meta_tasks: list of metatasks.
     :param num_epochs: number of iterations of tasks set
     :returns: a mean function object
@@ -207,13 +215,12 @@ def train_loop(meta_tasks, num_epochs, num_iters, lr):
         for i, task in enumerate(meta_tasks):
             data = task  # (X, Y)
             model = build_model(data, mean_function=mean_function)
-            run_adam(model, num_iters, lr)
+            train_loss = run_adam(model, num_iters, lr)
             tf.summary.scalar(
                 'train_loss',
-                train_loss.result(),
+                train_loss,
                 # Each step corresponds to a run_adam over one task
-                step=num_epochs * len(meta_tasks) + i)
-            train_loss.reset_states()
+                step=iteration * len(meta_tasks) + i)
 
         print(">>>> Epoch took {:.2f} s".format(time.time() - ts))
 
@@ -225,14 +232,19 @@ def mean_squared_error(y, y_pred):
     return np.mean((y - y_pred)**2)
 
 
-# **NOTE:** We use only 50 metatasks and 10 test tasks over 5 epochs for scalability, whereas the paper uses 1,000 and 200 respectively over 100 epochs. To compensate, we sample 500 points per curve, whereas the paper samples only 50 points. Hence, there might be some discrepancies in the results.
+# **NOTE:** We use only 50 metatasks and 10 test tasks over 5 epochs
+# for scalability, whereas the paper uses 1,000 and 200 respectively
+# over 100 epochs. To compensate, we sample 500 points per curve,
+# whereas the paper samples only 50 points. Hence, there might be some
+# discrepancies in the results.
 
 
 def main(hparams):
     # for reproducibility of this notebook:
     np.random.seed(hparams.seed)
     tf.random.set_seed(hparams.seed)
-
+    # Generate the tasks from a GP with an SE kernel and a sinusoidal mean.
+    # Each task is a realization of this process.
     meta, test = generate_meta_and_test_tasks(hparams.num_context,
                                               hparams.num_tasks_train,
                                               hparams.num_tasks_test,
@@ -276,15 +288,13 @@ def main(hparams):
         plt.legend()
         # Send fig to tensorboard
         tf.summary.image("test_image", plot_to_image(figure), step=i)
-
-        plt.show()
+        # plt.show()
 
     # %%
     mean_mse = np.mean(mean_squared_errors)
     std_mse = np.std(mean_squared_errors) / np.sqrt(hparams.num_tasks_test)
-    print(
-        f"The mean MSE over all {hparams.num_test_tasks} test tasks is {mean_mse:.2f} +/- {std_mse:.2f}"
-    )
+    print(f"The mean MSE over all {hparams.num_tasks_test} test tasks"
+          f"is {mean_mse:.2f} +/- {std_mse:.2f}")
     tf.summary.scalar("test_mse_functional", mean_mse)
 
 
