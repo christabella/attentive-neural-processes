@@ -46,3 +46,16 @@
       description: Meta-train and test.
       main: deep_mean_gp
 
+  sourcecode:
+    - exclude: '*.ipynb'
+    - exclude: '.*'
+    - exclude: '*.csv'
+    - exclude: '*.pyc'
+    - exclude:
+        dir: ./data
+    - exclude:
+        dir: __pycache__
+    - exclude:
+        dir: runs
+    - exclude:
+        dir: docs

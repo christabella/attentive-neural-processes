@@ -16,9 +16,6 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from src.models.lightning_anp import LatentModelPL
 from pytorch_lightning.callbacks import EarlyStopping
 
-SEED = 2334
-torch.manual_seed(SEED)
-np.random.seed(SEED)
 # The processing speed (i.e. processed batch items per second) can be lower than when the model is non-deterministic. https://pytorch.org/docs/stable/notes/randomness.html
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
@@ -29,6 +26,9 @@ def main(hparams):
     Main training routine specific for this project
     :param hparams:
     """
+    torch.manual_seed(hparams.seed)
+    np.random.seed(hparams.seed)
+
     # ------------------------
     # 1 INIT LIGHTNING MODEL
     # ------------------------
@@ -91,6 +91,7 @@ if __name__ == '__main__':
     # these are project-wide arguments
 
     parent_parser = ArgumentParser(add_help=False)
+    parent_parser.add_argument('--seed', type=int, default=2334)
 
     # gpu args
     parent_parser.add_argument('--gpus',
