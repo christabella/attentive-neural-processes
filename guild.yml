@@ -19,6 +19,8 @@
         - .started
         - =epochs
         - =learning_rate
+        - =num_tasks_train
+        - =num_tasks_test
         - =det_enc_cross_attn_type
         - =use_rnn
         - =dataset
