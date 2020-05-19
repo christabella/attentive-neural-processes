@@ -202,6 +202,17 @@ def train_loop(meta_tasks, valid_tasks, num_epochs, num_iters, lr):
             valid_data = valid_tasks[i]
             model = build_model(data, mean_function=mean_function)
             run_adam(model, num_iters, data, valid_data, lr)
+            pred_mean, pred_var = model.predict_y(valid_data[0])
+            # Convert eager TF tensors to numpy
+            pred_mean, pred_var = pred_mean.numpy(), pred_var.numpy()
+            calib_error = _calib_error(pred_mean, pred_var**0.5, valid_data[1])
+            tf.summary.scalar("valid_calib_error", calib_error)
+            mse = mean_squared_error(valid_data[1], pred_mean)
+            tf.summary.scalar("valid_mse", mse)
+            valid_log_density = model.predict_log_density(valid_data)
+            tf.summary.scalar('valid_log_pred_likelihood',
+                              np.mean(valid_log_density))
+
             # Each step corresponds to a run_adam over one task
             # step=iteration * len(meta_tasks) + i)
 
@@ -268,7 +279,7 @@ def main(hparams):
     # We assess the performance of this procedure on the test tasks. For this,
     # we use the mean squared error as a performance metric.
     mean_squared_errors, log_densities, calib_errors, LMLs = [], [], [], []
-
+    global_step = np.array(1, dtype=np.int64)  # Reset global step...
     for i, test_task in enumerate(test):
         # Full
         m = test_models[i]
@@ -312,33 +323,33 @@ def main(hparams):
         # distribution of the targets p(y|test_x, test_context_x, context_y) in
         # the test points
         plt.title(
-            f"Task {i} | Log-likelihood={log_density: 2.2g}, MSE={mse: 2.2g}, CE={calib_error: 2.2g}"
+            f"Task {i} | Log-likelihood={np.mean(log_density): 2.2g}, MSE={mse: 2.2g}, CE={calib_error: 2.2g}"
         )
         # plt.legend()
         # Send fig to tensorboard
         tf.summary.image("test_image", plot_to_image(figure), step=i)
         # plt.show()
-    num_test_tasks = hparams.num_test_tasks
+    num_tasks_test = hparams.num_tasks_test
     mean_mse = np.mean(mean_squared_errors)
     std_mse = np.std(mean_squared_errors) / np.sqrt(
-        num_test_tasks)  # SD = SE * sqrt(N)
+        num_tasks_test)  # SD = SE * sqrt(N)
     avg_log_likelihood = np.mean(log_densities)
-    std_log_likelihood = np.std(log_densities) / np.sqrt(num_test_tasks)
+    std_log_likelihood = np.std(log_densities) / np.sqrt(num_tasks_test)
     calib_error = np.mean(calib_errors)
-    std_calib_error = np.std(calib_errors) / np.sqrt(num_test_tasks)
+    std_calib_error = np.std(calib_errors) / np.sqrt(num_tasks_test)
     LML = np.mean(LMLs)
-    std_LML = np.std(LMLs) / np.sqrt(num_test_tasks)
+    std_LML = np.std(LMLs) / np.sqrt(num_tasks_test)
     print(
-        f"The mean MSE over all {num_test_tasks} test tasks is {mean_mse:.3f} +/- {std_mse:.3f}"
+        f"The mean MSE over all {num_tasks_test} test tasks is {mean_mse:.3f} +/- {std_mse:.3f}"
     )
     print(
-        f"The avg log likelihood over all {num_test_tasks} test tasks is {avg_log_likelihood:.3f} +/- {std_log_likelihood:.3f}"
+        f"The avg log likelihood over all {num_tasks_test} test tasks is {avg_log_likelihood:.3f} +/- {std_log_likelihood:.3f}"
     )
     print(
-        f"The avg calib_error over all {num_test_tasks} test tasks is {calib_error:.3f} +/- {std_calib_error:.3f}"
+        f"The avg calib_error over all {num_tasks_test} test tasks is {calib_error:.3f} +/- {std_calib_error:.3f}"
     )
     print(
-        f"The avg LML over all {num_test_tasks} test tasks is {LML:.3f} +/- {std_LML:.3f}"
+        f"The avg LML over all {num_tasks_test} test tasks is {LML:.3f} +/- {std_LML:.3f}"
     )
     tf.summary.scalar("test_mse", mean_mse)
     tf.summary.scalar("test_log_likelihood", avg_log_likelihood)
