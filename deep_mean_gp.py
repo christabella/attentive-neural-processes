@@ -1,23 +1,5 @@
 from argparse import ArgumentParser
 import io
-
-# -*- coding: utf-8 -*-
-# ---
-# jupyter:
-#   jupytext:
-#     formats: ipynb,.pct.py:percent
-#     text_representation:
-#       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
-#       jupytext_version: 1.3.3
-#   kernelspec:
-#     display_name: Python 3
-#     language: python
-#     name: python3
-# ---
-
-# %% [markdown]
 # # Custom mean functions: metalearning with GPs
 # One of the advantages of Gaussian process is their flexibility as a modeling
 # tool. For instance, if the modeler knows that there is an underlying trend in
@@ -28,15 +10,9 @@ import io
 # at this functionality in the context of metalearning, where a number of
 # metatasks are available at train time and the user wants to adapt a flexible
 # model to new tasks at test time.
-#
-# For an in-depth discussion on this topic, see *(Fortuin and Rätsch, 2019)*.
-# This notebook reproduces section 4.2 of this paper.
-
-# %%
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-# %%
 import time
 import gpflow
 from gpflow.kernels import RBF
@@ -61,7 +37,6 @@ summary_writer = tf.summary.create_file_writer("tensorboard_logs")
 summary_writer.set_as_default()
 
 
-# %%
 def generate_GP_data(num_functions=10, N=500):
     """
     For each function, sample the value at `N` equally spaced
@@ -80,7 +55,6 @@ def generate_GP_data(num_functions=10, N=500):
     return Xs, F
 
 
-# %%
 def generate_meta_and_test_tasks(num_context, num_meta, num_test, N):
     """Generates meta-task datasets {D_i} = {x_i, y_i} and target task training
     and test data {\tilde{x}, \tilde{y}} (Fortuin and Rätsch, 2019).
@@ -127,8 +101,9 @@ def generate_meta_and_test_tasks(num_context, num_meta, num_test, N):
 # We will use a Keras model Deep Neural Network as mean function.
 def build_mean_function():
     inputs = tf.keras.layers.Input(shape=(1, ))
-    x = tf.keras.layers.Dense(64, activation="relu")(inputs)
-    x = tf.keras.layers.Dense(64, activation="relu")(x)
+    x = tf.keras.layers.Dense(128, activation="relu")(inputs)
+    x = tf.keras.layers.Dense(128, activation="relu")(x)
+    x = tf.keras.layers.Dense(128, activation="relu")(x)
     outputs = tf.keras.layers.Dense(1)(x)
     return tf.keras.Model(inputs=inputs, outputs=outputs)
 
@@ -282,8 +257,16 @@ def main(hparams):
         )
         plt.plot(train_X, train_Y, "ko", label="Training points")
         plt.plot(Xs, F, "ko", label="Ground truth", linewidth=2, markersize=1)
+        # Get log likelihood, MSE, and calibration error a la
+        # https://github.com/jonasrothfuss/meta_learning_pacoh/blob/376349e66bdd782e3d06b4bac2ecb56a2a10bcf6/meta_learn/abstract.py#L41
         mse = mean_squared_error(F, pred_mean)
         mean_squared_errors.append(mse)
+        # Performs posterior inference (target training) with (context_x,
+        # context_y) as training data and then computes the predictive
+        # distribution of the targets p(y|test_x, test_context_x, context_y) in
+        # the test points
+        test_models[i].predict_log_density
+        objective = -test_models[i].log_marginal_likelihood()  # LML
         plt.title(f"Test Task {i + 1} | MSE = {mse:.2f}")
         plt.legend()
         # Send fig to tensorboard
