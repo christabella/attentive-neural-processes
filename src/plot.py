@@ -141,7 +141,7 @@ def plot_from_loader(loader,
             y_pred, kl, loss_test, loss_mse, y_std = model(
                 context_x, context_y, target_x, target_y)
 
-            plt.figure()
+            plt.figure(figsize=(8, 4))
             plt.title(title + f" loss={loss_test: 2.2g} for index {i}")
             plot_data(
                 # Flatten the target_x and target_y's shape from [1, N, 1] to just [N]
