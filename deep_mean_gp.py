@@ -171,6 +171,7 @@ def run_adam(model, iterations, data, lr):
     for step in range(iterations):
         loss = optimization_step()  # This is the neg LML, a scalar
         tf.summary.scalar('train_loss', loss)
+        # This is kinda meaningless though?
         log_density = model.predict_log_density(
             data)  # Vector for each point...
         tf.summary.scalar('train_log_pred_likelihood', np.mean(log_density))
@@ -199,18 +200,25 @@ def train_loop(meta_tasks, valid_tasks, num_epochs, num_iters, lr):
             data = task  # (X, Y)
             # Basically we are discarding S_C. todo(bella) make sure this is correct
             # also in pacoh; well in abstract.py eval() it's passed into predict()
-            (val_X_C, val_Y_C), (val_X_T, val_Y_T) = valid_tasks[i]
             model = build_model(data, mean_function=mean_function)
             run_adam(model, num_iters, data, lr)
-            pred_mean, pred_var = model.predict_y(val_X_T)
+            # Compute validation metrics in a fashion similar to GPR_meta_mll.py's
+            # `gp_model.meta_fit(valid_tuples=meta_test_data, log_period=1000, n_iter=20000)`
+            # OH in GPR_meta_mll:main, they use the same data for both validation and test...
+
+            (val_X_C, val_Y_C), (val_X_T, val_Y_T) = valid_tasks[i]
+            # I need to first fit the GPR model on the val data... silly!
+            val_model = build_model((val_X_C, val_Y_C),
+                                    mean_function=mean_function)
+            pred_mean, pred_var = val_model.predict_y(val_X_T)
             # Convert eager TF tensors to numpy
             pred_mean, pred_var = pred_mean.numpy(), pred_var.numpy()
-
             calib_error = _calib_error(pred_mean, pred_var**0.5, val_Y_T)
             tf.summary.scalar("valid_calib_error", calib_error)
             mse = mean_squared_error(val_Y_T, pred_mean)
             tf.summary.scalar("valid_mse", mse)
-            valid_log_density = model.predict_log_density((val_X_T, val_Y_T))
+            valid_log_density = val_model.predict_log_density(
+                (val_X_T, val_Y_T))
             tf.summary.scalar('valid_log_pred_likelihood',
                               np.mean(valid_log_density))
 
