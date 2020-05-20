@@ -64,7 +64,7 @@ def generate_meta_and_test_tasks(num_context, num_meta, num_test, N):
     and test data {\tilde{x}, \tilde{y}} (Fortuin and Rätsch, 2019).
 
     Args:
-        num_context: The number of training points, \tilde{n} in Table S1.
+        num_context: The number of training points, \tilde{n} > N in Table S1.
         num_meta: The number of meta-tasks ("sampled functions").
         num_test: The number of test tasks ("unseen functions").
         N: Number of sampled data points per function.
@@ -76,17 +76,19 @@ def generate_meta_and_test_tasks(num_context, num_meta, num_test, N):
                 (((num_context, 1), (num_context, 1)),
                  ((N - num_context, 1), (N - num_context, 1))).
     """
-    Xs, F = generate_GP_data(num_functions=num_meta + num_test, N=N)
-    meta_and_valid = []
+    # For splitting into train, val and test.
+    Xs, F = generate_GP_data(num_functions=num_meta + 2 * num_test, N=N)
+    # Validation needs to be the same format as test, i.e. (x_C, y_C, x_T, y_T)
+    meta = []
     # sd = 1e-1  # Standard deviation for normal observation noise.
-    for i in range(num_meta * 2):
+    for i in range(num_meta):
         # We always use all data points of the curve to train mean function,
         # i.e. n_i = N.
         # noise = sd * np.random.randn(N, 1)
         Y = F[:, i][:, None]
-        meta_and_valid.append((Xs, Y))
-    test = []
-    for i in range(num_test):
+        meta.append((Xs, Y))
+    valid_and_test = []
+    for i in range(2 * num_test):
         inds = np.random.choice(range(N), size=num_context, replace=False)
         inds.sort()
         # Form target training set, \tilde{D}_{train} (see Figure 1).
@@ -97,8 +99,8 @@ def generate_meta_and_test_tasks(num_context, num_meta, num_test, N):
         # num_extra_target = num_samples - num_context
         # Form target tasks' datasets \tilde{D} as a pair of pairs,
         # (\tilde{X}, \tilde{Y}) and (\tilde{X}*, \tilde{Y}*).
-        test.append(((x_context, y_context), (x_target, y_target)))
-    return meta_and_valid, test
+        valid_and_test.append(((x_context, y_context), (x_target, y_target)))
+    return meta, valid_and_test
 
 
 # ## Create the mean function
@@ -156,7 +158,7 @@ def create_optimization_step(optimizer, model: gpflow.models.GPR):
     return optimization_step
 
 
-def run_adam(model, iterations, data, valid_data, lr):
+def run_adam(model, iterations, data, lr):
     """
     Utility function running the Adam optimizer.
     :param model: GPflow model
@@ -172,10 +174,6 @@ def run_adam(model, iterations, data, valid_data, lr):
         log_density = model.predict_log_density(
             data)  # Vector for each point...
         tf.summary.scalar('train_log_pred_likelihood', np.mean(log_density))
-        # Validation loss
-        valid_log_density = model.predict_log_density(valid_data)
-        tf.summary.scalar('valid_log_pred_likelihood',
-                          np.mean(valid_log_density))
         global_step += 1
 
 
@@ -199,17 +197,20 @@ def train_loop(meta_tasks, valid_tasks, num_epochs, num_iters, lr):
         # Iterate over tasks
         for i, task in enumerate(meta_tasks):
             data = task  # (X, Y)
-            valid_data = valid_tasks[i]
+            # Basically we are discarding S_C. todo(bella) make sure this is correct
+            # also in pacoh; well in abstract.py eval() it's passed into predict()
+            (val_X_C, val_Y_C), (val_X_T, val_Y_T) = valid_tasks[i]
             model = build_model(data, mean_function=mean_function)
-            run_adam(model, num_iters, data, valid_data, lr)
-            pred_mean, pred_var = model.predict_y(valid_data[0])
+            run_adam(model, num_iters, data, lr)
+            pred_mean, pred_var = model.predict_y(val_X_T)
             # Convert eager TF tensors to numpy
             pred_mean, pred_var = pred_mean.numpy(), pred_var.numpy()
-            calib_error = _calib_error(pred_mean, pred_var**0.5, valid_data[1])
+
+            calib_error = _calib_error(pred_mean, pred_var**0.5, val_Y_T)
             tf.summary.scalar("valid_calib_error", calib_error)
-            mse = mean_squared_error(valid_data[1], pred_mean)
+            mse = mean_squared_error(val_Y_T, pred_mean)
             tf.summary.scalar("valid_mse", mse)
-            valid_log_density = model.predict_log_density(valid_data)
+            valid_log_density = model.predict_log_density((val_X_T, val_Y_T))
             tf.summary.scalar('valid_log_pred_likelihood',
                               np.mean(valid_log_density))
 
@@ -246,6 +247,11 @@ def _calib_error(pred_mean, pred_std, test_y):
     return calib_rmse
 
 
+def running_mean(x, N):
+    cumsum = np.cumsum(np.insert(x, 0, 0))
+    return (cumsum[N:] - cumsum[:-N]) / float(N)
+
+
 # **NOTE:** We use only 50 metatasks and 10 test tasks over 5 epochs
 # for scalability, whereas the paper uses 1,000 and 200 respectively
 # over 100 epochs. To compensate, we sample 500 points per curve,
@@ -259,12 +265,12 @@ def main(hparams):
     tf.random.set_seed(hparams.seed)
     # Generate the tasks from a GP with an SE kernel and a sinusoidal mean.
     # Each task is a realization of this process.
-    meta_and_valid, test = generate_meta_and_test_tasks(
+    meta, valid_and_test = generate_meta_and_test_tasks(
         hparams.num_context, hparams.num_tasks_train, hparams.num_tasks_test,
         hparams.num_samples)
     # Further split
-    meta, valid = meta_and_valid[:hparams.num_tasks_train], meta_and_valid[
-        hparams.num_tasks_train:]
+    valid, test = valid_and_test[:hparams.num_tasks_test], valid_and_test[
+        hparams.num_tasks_test:]
     mean_function_optimal = train_loop(meta,
                                        valid,
                                        num_epochs=hparams.epochs,
@@ -279,7 +285,7 @@ def main(hparams):
     # We assess the performance of this procedure on the test tasks. For this,
     # we use the mean squared error as a performance metric.
     mean_squared_errors, log_densities, calib_errors, LMLs = [], [], [], []
-    global_step = np.array(1, dtype=np.int64)  # Reset global step...
+    # global_step = np.array(1, dtype=np.int64)  # Reset global step...
     for i, test_task in enumerate(test):
         # Full
         m = test_models[i]
@@ -297,6 +303,16 @@ def main(hparams):
         calib_errors.append(calib_error)
         LML = -test_models[i].log_marginal_likelihood()  # LML
         LMLs.append(LML)
+        tf.summary.scalar("test_mse",
+                          running_mean(mean_squared_errors, i + 1),
+                          step=i)
+        tf.summary.scalar("test_log_likelihood",
+                          running_mean(log_densities, i + 1),
+                          step=i)
+        tf.summary.scalar("test_calib_error",
+                          running_mean(calib_errors, i + 1),
+                          step=i)
+        tf.summary.scalar("test_LML", running_mean(LMLs, i + 1), step=i)
 
         figure = plt.figure(figsize=(8, 4))
         plt.plot(Xs,
@@ -328,6 +344,7 @@ def main(hparams):
         # plt.legend()
         # Send fig to tensorboard
         tf.summary.image("test_image", plot_to_image(figure), step=i)
+        plt.close()
         # plt.show()
     num_tasks_test = hparams.num_tasks_test
     mean_mse = np.mean(mean_squared_errors)
@@ -339,6 +356,10 @@ def main(hparams):
     std_calib_error = np.std(calib_errors) / np.sqrt(num_tasks_test)
     LML = np.mean(LMLs)
     std_LML = np.std(LMLs) / np.sqrt(num_tasks_test)
+    tf.summary.scalar("test_mse", mean_mse, step=1)
+    tf.summary.scalar("test_log_likelihood", avg_log_likelihood, step=1)
+    tf.summary.scalar("test_calib_error", calib_error, step=1)
+    tf.summary.scalar("test_LML", LML, step=1)
     print(
         f"The mean MSE over all {num_tasks_test} test tasks is {mean_mse:.3f} +/- {std_mse:.3f}"
     )
@@ -351,10 +372,6 @@ def main(hparams):
     print(
         f"The avg LML over all {num_tasks_test} test tasks is {LML:.3f} +/- {std_LML:.3f}"
     )
-    tf.summary.scalar("test_mse", mean_mse)
-    tf.summary.scalar("test_log_likelihood", avg_log_likelihood)
-    tf.summary.scalar("test_calib_error", calib_error)
-    tf.summary.scalar("test_LML", LML)
 
 
 if __name__ == '__main__':
