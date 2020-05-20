@@ -341,7 +341,6 @@ def main(hparams):
         # Get log likelihood, MSE, and calibration error a la
         # https://github.com/jonasrothfuss/meta_learning_pacoh/blob/376349e66bdd782e3d06b4bac2ecb56a2a10bcf6/meta_learn/abstract.py#L41
         mse = mean_squared_error(F, pred_mean)
-        mean_squared_errors.append(mse)
         # Performs posterior inference (target training) with (context_x,
         # context_y) as training data and then computes the predictive
         # distribution of the targets p(y|test_x, test_context_x, context_y) in
