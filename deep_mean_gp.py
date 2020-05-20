@@ -304,15 +304,15 @@ def main(hparams):
         LML = -test_models[i].log_marginal_likelihood()  # LML
         LMLs.append(LML)
         tf.summary.scalar("test_mse",
-                          running_mean(mean_squared_errors, i + 1),
+                          running_mean(mean_squared_errors, i + 1).item(),
                           step=i)
         tf.summary.scalar("test_log_likelihood",
-                          running_mean(log_densities, i + 1),
+                          running_mean(log_densities, i + 1).item(),
                           step=i)
         tf.summary.scalar("test_calib_error",
-                          running_mean(calib_errors, i + 1),
+                          running_mean(calib_errors, i + 1).item(),
                           step=i)
-        tf.summary.scalar("test_LML", running_mean(LMLs, i + 1), step=i)
+        tf.summary.scalar("test_LML", running_mean(LMLs, i + 1).item(), step=i)
 
         figure = plt.figure(figsize=(8, 4))
         plt.plot(Xs,
