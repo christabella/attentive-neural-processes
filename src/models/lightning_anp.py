@@ -3,6 +3,7 @@
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+import numpy as np
 from argparse import ArgumentParser
 from src.models.model import LatentModel
 from src.data.smart_meter import collate_fns, SmartMeterDataSet, get_smartmeter_df
@@ -96,10 +97,11 @@ class LatentModelPL(pl.LightningModule):
         loader = self.test_dataloader()
         image = plot_from_loader(loader, self, i=self.hparams["vis_i"])
         plt.savefig('test_plot.pgf')
+        vis_i = self.hparams["vis_i"]
+        # vis_i = np.random.randint(len(loader.dataset))
+        vis_i = 304
 
-        image = plot_from_loader_to_tensor(loader,
-                                           self,
-                                           i=self.hparams["vis_i"])
+        image = plot_from_loader_to_tensor(loader, self, i=vis_i)
         self.logger.experiment.add_image('test_image', image,
                                          self.trainer.global_step)
         keys = outputs[0]["log"].keys()

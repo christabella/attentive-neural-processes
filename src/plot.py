@@ -94,8 +94,7 @@ def plot_from_loader(loader,
     """Plot
     i: Index to visualize
     """
-    # i = min(int(i), len(loader.dataset) - 1)
-    i = np.random.randint(len(loader.dataset))
+    i = min(int(i), len(loader.dataset) - 1)
     if context_in_target is None:
         context_in_target = model.hparams["context_in_target"]
 
