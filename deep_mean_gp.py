@@ -322,6 +322,8 @@ def main(hparams):
                           step=i)
         tf.summary.scalar("test_LML", running_mean(LMLs, i + 1).item(), step=i)
 
+        if i != 304:  # Just some random index for consistent plots?
+            continue  # But anyway NP would have different seed? :\
         figure = plt.figure(figsize=(8, 4))
         plt.plot(Xs,
                  pred_mean,
@@ -337,7 +339,7 @@ def main(hparams):
             label="Prediction variance",
         )
         plt.plot(train_X, train_Y, "ko", label="Training points")
-        plt.plot(Xs, F, "ko", label="Ground truth", linewidth=2, markersize=1)
+        plt.plot(Xs, F, "ko", label="Ground truth", linewidth=2)
         # Get log likelihood, MSE, and calibration error a la
         # https://github.com/jonasrothfuss/meta_learning_pacoh/blob/376349e66bdd782e3d06b4bac2ecb56a2a10bcf6/meta_learn/abstract.py#L41
         mse = mean_squared_error(F, pred_mean)
@@ -394,7 +396,9 @@ if __name__ == '__main__':
         '--num_iters',
         type=int,
         default=1,
-        help="Inner loop gradient steps. 1 to be comparable with NPs.")
+        help=
+        "Inner loop gradient steps. 1 to be comparable with NPs. Ok actually it should ALWAYS BE 1."
+    )
 
     parser.add_argument('--num_tasks_train', type=int, default=500)
     parser.add_argument('--num_tasks_test', type=int, default=500)
