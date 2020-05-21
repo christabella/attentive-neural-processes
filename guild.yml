@@ -8,11 +8,17 @@
       requires:
         - file: data
       compare:
-        - test_loss
-        - test_mse_functional as test_mse
         - train_loss step as step
+        - test_loss
+        - test_log_likelihood
+        - test_mse  # Or test_mse_functional as test_mse
+        - test_calib_error
         - train_loss
-        - train_mse_functional as train_mse
+        - train_mse
+        # - train_log_likelihood  # Log predictive likelihood
+        - valid_log_likelihood
+        - valid_mse
+        - valid_calib_error
         # val_loss is the last recorded loss, whereas test is best
         # - val_loss
         - .time

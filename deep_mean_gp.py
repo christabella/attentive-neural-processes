@@ -172,16 +172,21 @@ def run_adam(model, iterations, data, lr):
         loss = optimization_step()  # This is the neg LML, a scalar
         tf.summary.scalar('train_loss', loss)
         # This is kinda meaningless though?
-        log_density = model.predict_log_density(
-            data)  # Vector for each point...
-        tf.summary.scalar('train_log_pred_likelihood', np.mean(log_density))
+        # log_density = model.predict_log_density(
+        # data)  # Vector for each point...
+        # tf.summary.scalar('train_log_likelihood', np.mean(log_density))
         global_step += 1
 
 
 # Next, we define the training loop for metalearning.
 
 
-def train_loop(meta_tasks, valid_tasks, num_epochs, num_iters, lr):
+def train_loop(meta_tasks,
+               valid_tasks,
+               num_epochs,
+               num_iters,
+               lr,
+               manager=None):
     """
     Metalearning training loop. Trained for 100 epochs in original experiment.
     :param meta_tasks: list of metatasks.
@@ -195,6 +200,7 @@ def train_loop(meta_tasks, valid_tasks, num_epochs, num_iters, lr):
     for iteration in range(num_epochs):
         ts = time.time()
         print("Currently in meta-iteration/epoch {}".format(iteration))
+        best_log_density = -np.inf
         # Iterate over tasks
         for i, task in enumerate(meta_tasks):
             data = task  # (X, Y)
@@ -219,9 +225,11 @@ def train_loop(meta_tasks, valid_tasks, num_epochs, num_iters, lr):
             tf.summary.scalar("valid_mse", mse)
             valid_log_density = val_model.predict_log_density(
                 (val_X_T, val_Y_T))
-            tf.summary.scalar('valid_log_pred_likelihood',
+            tf.summary.scalar('valid_log_likelihood',
                               np.mean(valid_log_density))
-
+            if valid_log_density > best_log_density:
+                pass
+                # ckpt_path = manager.save()
             # Each step corresponds to a run_adam over one task
             # step=iteration * len(meta_tasks) + i)
 
@@ -320,7 +328,9 @@ def main(hparams):
         tf.summary.scalar("test_calib_error",
                           running_mean(calib_errors, i + 1).item(),
                           step=i)
-        tf.summary.scalar("test_LML", running_mean(LMLs, i + 1).item(), step=i)
+        tf.summary.scalar("test_loss",
+                          running_mean(LMLs, i + 1).item(),
+                          step=i)
 
         if i != 304:  # Just some random index for consistent plots?
             continue  # But anyway NP would have different seed? :\
@@ -368,7 +378,7 @@ def main(hparams):
     tf.summary.scalar("test_mse", mean_mse, step=1)
     tf.summary.scalar("test_log_likelihood", avg_log_likelihood, step=1)
     tf.summary.scalar("test_calib_error", calib_error, step=1)
-    tf.summary.scalar("test_LML", LML, step=1)
+    tf.summary.scalar("test_loss", LML, step=1)
     print(
         f"The mean MSE over all {num_tasks_test} test tasks is {mean_mse:.3f} +/- {std_mse:.3f}"
     )
